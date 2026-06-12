@@ -1,0 +1,123 @@
+import { describe, it, expect, vi } from "vitest";
+import { Session } from "../../src/core/session.js";
+import type { PermissionResult, QueryFn, SdkMessage } from "../../src/core/types.js";
+
+/** Fake query: consumes one prompt item, then replays `script`. */
+function scriptedQuery(script: SdkMessage[], capture?: { options?: Record<string, unknown> }): QueryFn {
+  return ({ prompt, options }) => {
+    if (capture) capture.options = options;
+    async function* gen() {
+      for await (const _first of prompt) {
+        for (const m of script) yield m;
+        return;
+      }
+    }
+    return Object.assign(gen(), { interrupt: vi.fn(async () => {}), setPermissionMode: vi.fn(async () => {}) });
+  };
+}
+
+describe("Session", () => {
+  it("send() streams messages through transcript and lands on idle", async () => {
+    const s = new Session({
+      id: "s1", cwd: "/tmp",
+      queryFn: scriptedQuery([
+        { type: "system", subtype: "init", session_id: "claude-sess-9", model: "claude-opus-4-8" },
+        { type: "assistant", message: { content: [{ type: "text", text: "hi!" }], usage: { input_tokens: 5, output_tokens: 2 } } },
+        { type: "result", subtype: "success", total_cost_usd: 0.01, num_turns: 1 },
+      ]),
+    });
+    s.send("hello");
+    expect(s.status).toBe("processing");
+    expect(s.title).toBe("hello");
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+    expect(s.claudeSessionId).toBe("claude-sess-9");
+    expect(s.transcript.blocks.some((b) => b.kind === "assistant" && b.text === "hi!")).toBe(true);
+    expect(s.transcript.usage.costUsd).toBeCloseTo(0.01);
+  });
+
+  it("passes daily-driver options to the SDK (settingSources, claude_code preset, partials)", async () => {
+    const capture: { options?: Record<string, unknown> } = {};
+    const s = new Session({ id: "s1", cwd: "/repo", queryFn: scriptedQuery([{ type: "result", subtype: "success" }], capture) });
+    s.send("x");
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+    expect(capture.options?.cwd).toBe("/repo");
+    expect(capture.options?.includePartialMessages).toBe(true);
+    expect(capture.options?.settingSources).toEqual(["user", "project", "local"]);
+    expect(capture.options?.systemPrompt).toEqual({ type: "preset", preset: "claude_code" });
+  });
+
+  it("routes canUseTool into a pending permission request and resumes on resolve", async () => {
+    const queryFn: QueryFn = ({ prompt, options }) => {
+      async function* gen() {
+        for await (const _ of prompt) {
+          const canUseTool = options.canUseTool as (
+            t: string, i: Record<string, unknown>, o: { suggestions?: unknown[] }
+          ) => Promise<PermissionResult>;
+          const result = await canUseTool("Bash", { command: "rm -rf /tmp/x" }, { suggestions: [{ destination: "localSettings" }] });
+          yield (result.behavior === "allow"
+            ? { type: "assistant", message: { content: [{ type: "text", text: "done" }] } }
+            : { type: "assistant", message: { content: [{ type: "text", text: "denied" }] } }) as SdkMessage;
+          yield { type: "result", subtype: "success" } as SdkMessage;
+          return;
+        }
+      }
+      return gen();
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.send("delete temp");
+    await vi.waitFor(() => expect(s.status).toBe("awaiting-permission"));
+    expect(s.pendingPermission?.toolName).toBe("Bash");
+    s.pendingPermission!.resolve({ behavior: "allow", updatedInput: s.pendingPermission!.input });
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+    expect(s.transcript.blocks.some((b) => b.kind === "assistant" && b.text === "done")).toBe(true);
+  });
+
+  it("marks AskUserQuestion as awaiting-input", async () => {
+    const queryFn: QueryFn = ({ prompt, options }) => {
+      async function* gen() {
+        for await (const _ of prompt) {
+          const canUseTool = options.canUseTool as (t: string, i: Record<string, unknown>, o: object) => Promise<PermissionResult>;
+          await canUseTool("AskUserQuestion", { questions: [] }, {});
+          yield { type: "result", subtype: "success" } as SdkMessage;
+          return;
+        }
+      }
+      return gen();
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.send("build it");
+    await vi.waitFor(() => expect(s.status).toBe("awaiting-input"));
+    s.pendingPermission!.resolve({ behavior: "allow", updatedInput: {} });
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+  });
+
+  it("crashes the tab (not the process) on stream error, and resume() re-arms with the claude session id", async () => {
+    let call = 0;
+    const captures: Array<Record<string, unknown>> = [];
+    const queryFn: QueryFn = ({ prompt, options }) => {
+      captures.push(options);
+      const thisCall = ++call;
+      async function* gen(): AsyncGenerator<SdkMessage> {
+        for await (const _ of prompt) {
+          if (thisCall === 1) {
+            yield { type: "system", subtype: "init", session_id: "claude-sess-1" };
+            throw new Error("subprocess exited");
+          }
+          yield { type: "result", subtype: "success" };
+          return;
+        }
+      }
+      return gen();
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.send("boom");
+    await vi.waitFor(() => expect(s.status).toBe("crashed"));
+    expect(s.error).toContain("subprocess exited");
+
+    s.resume();
+    expect(s.status).toBe("idle");
+    s.send("again");
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+    expect(captures[1].resume).toBe("claude-sess-1");
+  });
+});
