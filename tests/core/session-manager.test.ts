@@ -66,4 +66,41 @@ describe("SessionManager", () => {
     m.restoreState();
     expect(m.sessions.length).toBe(1);
   });
+
+  it("keeps the active tab focused when closing a tab before it", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    const a = m.create();
+    const b = m.create();
+    m.create(); // c
+    m.activate(1); // b active
+    m.close(a.id);
+    expect(m.active?.id).toBe(b.id);
+  });
+
+  it("clamps activeIndex when closing the last tab while it is active", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    m.create();
+    const b = m.create();
+    const c = m.create();
+    m.activate(2); // c active
+    m.close(c.id);
+    expect(m.active?.id).toBe(b.id);
+  });
+
+  it("skips malformed session entries on restore", () => {
+    const statePath = tmpState();
+    writeFileSync(
+      statePath,
+      JSON.stringify({
+        version: 1,
+        active: 0,
+        counter: 3,
+        sessions: [{ id: "s1", title: "good", cwd: "/tmp" }, { title: "no id or cwd" }],
+      })
+    );
+    const m = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery });
+    m.restoreState();
+    expect(m.sessions).toHaveLength(1);
+    expect(m.sessions[0].title).toBe("good");
+  });
 });

@@ -58,7 +58,8 @@ export class SessionManager {
     this.sessions[i].dispose();
     this.sessions.splice(i, 1);
     if (this.sessions.length === 0) this.create();
-    this.activeIndex = Math.min(this.activeIndex, this.sessions.length - 1);
+    if (i < this.activeIndex) this.activeIndex--;
+    this.activeIndex = Math.max(0, Math.min(this.activeIndex, this.sessions.length - 1));
     this.notify();
   }
 
@@ -79,6 +80,9 @@ export class SessionManager {
     if (state) {
       this.counter = state.counter;
       for (const saved of state.sessions) {
+        if (typeof saved.id !== "string" || typeof saved.title !== "string" || typeof saved.cwd !== "string") {
+          continue; // malformed entry — never produce a zombie tab
+        }
         const session = new Session({
           id: saved.id,
           cwd: saved.cwd,
