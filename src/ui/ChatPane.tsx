@@ -11,16 +11,17 @@ export interface Line {
 }
 
 export function wrapText(text: string, width: number): string[] {
+  const w = Math.max(1, width);
   const out: string[] = [];
   for (const raw of text.split("\n")) {
-    if (raw.length <= width) {
+    if (raw.length <= w) {
       out.push(raw);
       continue;
     }
     let line = raw;
-    while (line.length > width) {
-      out.push(line.slice(0, width));
-      line = line.slice(width);
+    while (line.length > w) {
+      out.push(line.slice(0, w));
+      line = line.slice(w);
     }
     out.push(line);
   }
@@ -67,6 +68,9 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
     setSearch({ active: false, query: "" });
   }, [session?.id]);
 
+  // PERF(v1.1): rebuilt on every render; during streaming this re-wraps the whole
+  // transcript per delta. Fine for short sessions — memoize prefix wrapping (all
+  // blocks except the streaming tail) before long-session support.
   const lines: Line[] = [];
   for (const b of session?.transcript.blocks ?? []) lines.push(...blockLines(b, width));
   const maxOffset = Math.max(0, lines.length - height);
@@ -89,9 +93,14 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
   useInput(
     (input, key) => {
       if (search.active) {
-        if (key.return || key.escape) setSearch((s) => ({ ...s, active: false }));
+        if (key.escape) setSearch({ active: false, query: "" });
+        else if (key.return) setSearch((s) => ({ ...s, active: false }));
         else if (key.backspace || key.delete) setSearch((s) => ({ ...s, query: s.query.slice(0, -1) }));
         else if (input && !key.ctrl && !key.meta) setSearch((s) => ({ ...s, query: s.query + input }));
+        return;
+      }
+      if (key.escape && search.query !== "") {
+        setSearch({ active: false, query: "" });
         return;
       }
       if (input === "j") setOffset((o) => Math.max(0, o - 1));

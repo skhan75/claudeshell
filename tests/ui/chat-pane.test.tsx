@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import React from "react";
-import { ChatPane } from "../../src/ui/ChatPane.js";
+import { ChatPane, wrapText } from "../../src/ui/ChatPane.js";
 import { renderWithCtx, makeCtx, cleanupInk } from "./helpers.js";
 
 afterEach(cleanupInk);
@@ -63,5 +63,41 @@ describe("ChatPane", () => {
     stdin.write("n");  // jump to match
     await tick();
     expect(lastFrame()).toContain("needle here");
+  });
+
+  it("wrapText never hangs on non-positive width", () => {
+    expect(wrapText("hello", 0)).toEqual(["h", "e", "l", "l", "o"]);
+  });
+
+  it("esc cancels search and clears the highlight footer", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    s.transcript.addInfo("needle here");
+    ctx.store.getState().bump();
+    ctx.store.getState().setFocus("scroll");
+    const { lastFrame, stdin } = renderWithCtx(<ChatPane height={5} />, ctx);
+    await tick();
+    stdin.write("/");
+    await tick();
+    stdin.write("needle");
+    await tick();
+    expect(lastFrame()).toContain("/needle");
+    stdin.write("\x1b"); // esc — real byte
+    await tick();
+    expect(lastFrame()).not.toContain("/needle");
+  });
+
+  it("ignores scroll keys while the palette is open", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    for (let i = 0; i < 30; i++) s.transcript.addInfo(`line-${i}`);
+    ctx.store.getState().bump();
+    ctx.store.getState().setFocus("scroll");
+    ctx.store.getState().setPaletteOpen(true);
+    const { lastFrame, stdin } = renderWithCtx(<ChatPane height={5} />, ctx);
+    await tick();
+    stdin.write("g"); // would jump to top if active
+    await tick();
+    expect(lastFrame()).toContain("line-29"); // still at bottom
   });
 });
