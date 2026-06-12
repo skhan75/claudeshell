@@ -4,6 +4,7 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
   private done = false;
 
   push(item: T): void {
+    if (this.done) return;
     const w = this.waiters.shift();
     if (w) w({ value: item, done: false });
     else this.items.push(item);

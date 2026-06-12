@@ -24,4 +24,22 @@ describe("AsyncQueue", () => {
     q.end();
     expect((await it.next()).done).toBe(true);
   });
+
+  it("drains buffered items then terminates after end()", async () => {
+    const q = new AsyncQueue<number>();
+    q.push(1);
+    q.push(2);
+    q.end();
+    const seen: number[] = [];
+    for await (const n of q) seen.push(n);
+    expect(seen).toEqual([1, 2]);
+  });
+
+  it("ignores pushes after end()", async () => {
+    const q = new AsyncQueue<number>();
+    q.end();
+    q.push(99);
+    const it = q[Symbol.asyncIterator]();
+    expect((await it.next()).done).toBe(true);
+  });
 });
