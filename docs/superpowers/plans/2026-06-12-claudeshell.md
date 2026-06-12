@@ -3457,3 +3457,137 @@ Expected: PASS, no type errors.
 git add src/core/config.ts src/core/session.ts src/ui/CommandPalette.tsx tests/core/config.test.ts tests/ui/palette.test.tsx
 git commit -m "feat: model switching via palette, configurable model list"
 ```
+
+---
+
+### Task 18: Custom themes (user request, added 2026-06-12)
+
+Users can write theme files and select them in config; claudeshell ships the default "cyberpunk" theme. Execute after Task 17.
+
+**Files:**
+- Modify: `src/ui/theme.ts`, `src/core/config.ts`, `src/cli.tsx`
+- Test: `tests/ui/theme.test.ts`, extend `tests/core/config.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+`tests/ui/theme.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { CYBERPUNK, loadThemeOverrides, resolveTheme } from "../../src/ui/theme.js";
+
+describe("themes", () => {
+  it("returns empty overrides when the theme is the built-in default or file is missing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-themes-"));
+    expect(loadThemeOverrides("cyberpunk", dir)).toEqual({});
+    expect(loadThemeOverrides("nope", dir)).toEqual({});
+  });
+
+  it("loads valid color overrides and drops invalid values and unknown keys", () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-themes-"));
+    writeFileSync(
+      join(dir, "solar.toml"),
+      `accent = "#b58900"\nwarn = "not-a-color"\nbogus = "#ffffff"\ngood = "#0f0"\n`
+    );
+    expect(loadThemeOverrides("solar", dir)).toEqual({ accent: "#b58900", good: "#0f0" });
+  });
+
+  it("resolveTheme merges overrides onto the cyberpunk default", () => {
+    const t = resolveTheme({ accent: "#b58900" });
+    expect(t.accent).toBe("#b58900");
+    expect(t.dim).toBe(CYBERPUNK.dim);
+  });
+});
+```
+
+Append to `tests/core/config.test.ts` describe block:
+```ts
+  it("reads the theme name, defaulting to cyberpunk", () => {
+    expect(loadConfig({ globalDir, cwd: projectDir }).theme).toBe("cyberpunk");
+    writeFileSync(join(globalDir, "config.toml"), `[theme]\nname = "solar"\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).theme).toBe("solar");
+  });
+```
+
+Run both — expect FAIL (exports missing).
+
+- [ ] **Step 2: Implement theme module**
+
+Replace `src/ui/theme.ts`:
+```ts
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { parse } from "smol-toml";
+
+export interface Theme {
+  accent: string;
+  dim: string;
+  warn: string;
+  purple: string;
+  good: string;
+  bad: string;
+  fg: string;
+}
+
+export const CYBERPUNK: Theme = {
+  accent: "#4cc2ff",
+  dim: "#6a7891",
+  warn: "#ffcb6b",
+  purple: "#c792ea",
+  good: "#7ce38b",
+  bad: "#f07178",
+  fg: "#dbe6f5",
+};
+
+const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/** Read overrides from <themesDir>/<name>.toml; built-in/missing themes yield {}. */
+export function loadThemeOverrides(name: string, themesDir: string): Partial<Theme> {
+  if (name === "cyberpunk") return {};
+  const path = join(themesDir, `${name}.toml`);
+  if (!existsSync(path)) return {};
+  try {
+    const raw = parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+    const out: Partial<Theme> = {};
+    for (const key of Object.keys(CYBERPUNK) as Array<keyof Theme>) {
+      const v = raw[key];
+      if (typeof v === "string" && HEX.test(v)) out[key] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function resolveTheme(overrides: Partial<Theme>): Theme {
+  return { ...CYBERPUNK, ...overrides };
+}
+
+/** Mutable singleton imported by every component; applyTheme swaps values at startup. */
+export const theme: Theme = { ...CYBERPUNK };
+
+export function applyTheme(overrides: Partial<Theme>): void {
+  Object.assign(theme, resolveTheme(overrides));
+}
+```
+
+- [ ] **Step 3: Config + CLI wiring**
+
+`src/core/config.ts`: add `theme: string;` to `Config`; add `theme?: { name?: string };` to `RawConfig`; in `sanitize`, copy `raw.theme.name` when it's a string; in `loadConfig`'s return add:
+```ts
+    theme: p.theme?.name ?? g.theme?.name ?? "cyberpunk",
+```
+
+`src/cli.tsx`: in `main()` right after `const config = loadConfig({ cwd });` add:
+```ts
+  applyTheme(loadThemeOverrides(config.theme, join(homedir(), ".claudeshell", "themes")));
+```
+with `applyTheme, loadThemeOverrides` imported from `./ui/theme.js`.
+
+- [ ] **Step 4: Verify** — both test files pass, full `npm test`, `npm run typecheck`, `npm run build`.
+
+- [ ] **Step 5: README** — add a "Themes" section documenting `~/.claudeshell/themes/<name>.toml`, the seven keys, and `[theme] name = "..."` (do in/after Task 16 if README exists by then).
+
+- [ ] **Step 6: Commit** — `feat(ui): user themes — cyberpunk default + TOML overrides`
