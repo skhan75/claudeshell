@@ -26,7 +26,20 @@ export function makeCtx(queryFn: QueryFn = noopQuery): AppCtx {
   return { manager, config, store };
 }
 
+const mounted: Array<{ unmount: () => void }> = [];
+
 export function renderWithCtx(ui: React.ReactElement, ctx: AppCtx = makeCtx()) {
   const result = render(<AppContext.Provider value={ctx}>{ui}</AppContext.Provider>);
+  mounted.push(result);
   return { ...result, ctx };
+}
+
+export function cleanupInk(): void {
+  for (const m of mounted.splice(0)) {
+    try {
+      m.unmount();
+    } catch {
+      // already unmounted
+    }
+  }
 }
