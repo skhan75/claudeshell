@@ -120,4 +120,105 @@ describe("Session", () => {
     await vi.waitFor(() => expect(s.status).toBe("idle"));
     expect(captures[1].resume).toBe("claude-sess-1");
   });
+
+  it("queues overlapping permission requests instead of dropping them", async () => {
+    const queryFn: QueryFn = ({ prompt, options }) => {
+      async function* gen(): AsyncGenerator<SdkMessage> {
+        for await (const _ of prompt) {
+          const canUseTool = options.canUseTool as (
+            t: string, i: Record<string, unknown>, o: object
+          ) => Promise<PermissionResult>;
+          const p1 = canUseTool("Bash", { command: "ls" }, {});
+          const p2 = canUseTool("Write", { file_path: "/tmp/a" }, {});
+          const [r1, r2] = await Promise.all([p1, p2]);
+          yield {
+            type: "assistant",
+            message: { content: [{ type: "text", text: `${r1.behavior},${r2.behavior}` }] },
+          } as SdkMessage;
+          yield { type: "result", subtype: "success" } as SdkMessage;
+          return;
+        }
+      }
+      return gen();
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.send("go");
+    await vi.waitFor(() => expect(s.pendingPermission?.toolName).toBe("Bash"));
+    s.pendingPermission!.resolve({ behavior: "allow", updatedInput: {} });
+    await vi.waitFor(() => expect(s.pendingPermission?.toolName).toBe("Write"));
+    expect(s.status).toBe("awaiting-permission");
+    s.pendingPermission!.resolve({ behavior: "deny", message: "no" });
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+    expect(s.transcript.blocks.some((b) => b.kind === "assistant" && b.text === "allow,deny")).toBe(true);
+  });
+
+  it("auto-denies permission requests arriving after interrupt and stays idle", async () => {
+    let canUse:
+      | ((t: string, i: Record<string, unknown>, o: object) => Promise<PermissionResult>)
+      | undefined;
+    const queryFn: QueryFn = ({ prompt, options }) => {
+      canUse = options.canUseTool as typeof canUse;
+      async function* gen(): AsyncGenerator<SdkMessage> {
+        for await (const _ of prompt) {
+          await new Promise((r) => setTimeout(r, 200));
+          return;
+        }
+      }
+      const g = gen();
+      return Object.assign(g, { interrupt: async () => {} });
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.send("go");
+    await vi.waitFor(() => expect(canUse).toBeDefined());
+    await s.interrupt();
+    expect(s.status).toBe("idle");
+    const result = await canUse!("Bash", { command: "ls" }, {});
+    expect(result.behavior).toBe("deny");
+    expect(s.status).toBe("idle");
+  });
+
+  it("crash while a permission is pending denies it exactly once; late dialog answers are no-ops", async () => {
+    const queryFn: QueryFn = ({ prompt, options }) => {
+      async function* gen(): AsyncGenerator<SdkMessage> {
+        for await (const _ of prompt) {
+          const canUseTool = options.canUseTool as (
+            t: string, i: Record<string, unknown>, o: object
+          ) => Promise<PermissionResult>;
+          void canUseTool("Bash", { command: "ls" }, {});
+          await new Promise((r) => setTimeout(r, 200));
+          throw new Error("boom");
+        }
+      }
+      return gen();
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.send("go");
+    await vi.waitFor(() => expect(s.pendingPermission).not.toBeNull());
+    const dialogRef = s.pendingPermission!;
+    await vi.waitFor(() => expect(s.status).toBe("crashed"));
+    expect(s.pendingPermission).toBeNull();
+    dialogRef.resolve({ behavior: "allow", updatedInput: {} });
+    expect(s.status).toBe("crashed");
+  });
+
+  it("dispose() denies a pending permission", async () => {
+    let result: PermissionResult | undefined;
+    const queryFn: QueryFn = ({ prompt, options }) => {
+      async function* gen(): AsyncGenerator<SdkMessage> {
+        for await (const _ of prompt) {
+          const canUseTool = options.canUseTool as (
+            t: string, i: Record<string, unknown>, o: object
+          ) => Promise<PermissionResult>;
+          result = await canUseTool("Bash", { command: "ls" }, {});
+          return;
+        }
+      }
+      return gen();
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.send("go");
+    await vi.waitFor(() => expect(s.pendingPermission).not.toBeNull());
+    s.dispose();
+    await vi.waitFor(() => expect(result?.behavior).toBe("deny"));
+  });
 });

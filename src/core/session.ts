@@ -22,14 +22,35 @@ async function defaultQueryFn(args: { prompt: AsyncIterable<unknown>; options: R
 function lazyQuery(): QueryFn {
   return ({ prompt, options }) => {
     const handlePromise = defaultQueryFn({ prompt, options });
+    // Avoid unhandledRejection before a consumer attaches; pump() will observe the
+    // same rejection through the iterator and crash the tab cleanly.
+    handlePromise.catch(() => {});
     return {
       async *[Symbol.asyncIterator]() {
         const h = await handlePromise;
         for await (const m of h) yield m;
       },
-      interrupt: async () => (await handlePromise).interrupt?.(),
-      setPermissionMode: async (m: string) => (await handlePromise).setPermissionMode?.(m),
-      setModel: async (m: string) => (await handlePromise).setModel?.(m),
+      interrupt: async () => {
+        try {
+          await (await handlePromise).interrupt?.();
+        } catch {
+          // best effort — a dead handle has nothing to interrupt
+        }
+      },
+      setPermissionMode: async (m: string) => {
+        try {
+          await (await handlePromise).setPermissionMode?.(m);
+        } catch {
+          // best effort
+        }
+      },
+      setModel: async (m: string) => {
+        try {
+          await (await handlePromise).setModel?.(m);
+        } catch {
+          // best effort
+        }
+      },
     };
   };
 }
@@ -44,6 +65,8 @@ export class Session {
   error: string | null = null;
   permissionMode = "default";
 
+  private permissionBacklog: PermissionRequest[] = [];
+  private interrupted = false;
   private queue: AsyncQueue<unknown> | null = null;
   private handle: QueryHandle | null = null;
   private queryFn: QueryFn;
@@ -67,6 +90,7 @@ export class Session {
 
   send(text: string): void {
     if (this.status === "crashed") return;
+    this.interrupted = false;
     if (!this.titled) {
       this.title = text.length > 24 ? text.slice(0, 23) + "…" : text;
       this.titled = true;
@@ -74,7 +98,11 @@ export class Session {
     this.transcript.addUser(text);
     this.status = "processing";
     if (!this.queue) this.start();
-    this.queue!.push({ type: "user", message: { role: "user", content: text } });
+    this.queue!.push({
+      type: "user",
+      message: { role: "user", content: text },
+      parent_tool_use_id: null,
+    });
     this.onChange();
   }
 
@@ -106,8 +134,8 @@ export class Session {
       this.error = err instanceof Error ? err.message : String(err);
       this.queue = null;
       this.handle = null;
-      // a pending dialog can never be answered on a dead stream
-      this.pendingPermission?.resolve({ behavior: "deny", message: "session crashed" });
+      // dialogs can never be answered on a dead stream
+      this.drainPermissions("session crashed");
     }
     this.onChange();
   }
@@ -115,7 +143,19 @@ export class Session {
   private consume(msg: SdkMessage): void {
     this.transcript.apply(msg);
     if (msg.type === "system" && msg.subtype === "init" && msg.session_id) this.claudeId = msg.session_id;
-    if (msg.type === "result") this.status = "idle";
+    if (msg.type === "result") {
+      this.status = "idle";
+      this.interrupted = false;
+    }
+  }
+
+  /** Deny and clear every pending/queued permission request. */
+  private drainPermissions(message: string): void {
+    const all = [this.pendingPermission, ...this.permissionBacklog]
+      .filter((p): p is PermissionRequest => p !== null);
+    this.pendingPermission = null;
+    this.permissionBacklog = [];
+    for (const p of all) p.resolve({ behavior: "deny", message });
   }
 
   private requestPermission(
@@ -124,25 +164,46 @@ export class Session {
     suggestions: PermissionRequest["suggestions"]
   ): Promise<PermissionResult> {
     return new Promise((resolvePromise) => {
-      this.status = toolName === "AskUserQuestion" ? "awaiting-input" : "awaiting-permission";
-      this.pendingPermission = {
+      if (this.interrupted) {
+        resolvePromise({ behavior: "deny", message: "session interrupted" });
+        return;
+      }
+      let settled = false;
+      const request: PermissionRequest = {
         toolName,
         input,
         suggestions,
         resolve: (r: PermissionResult) => {
-          this.pendingPermission = null;
-          if (this.status === "awaiting-permission" || this.status === "awaiting-input") {
+          if (settled) return;
+          settled = true;
+          if (this.pendingPermission === request) {
+            this.pendingPermission = this.permissionBacklog.shift() ?? null;
+          } else {
+            this.permissionBacklog = this.permissionBacklog.filter((q) => q !== request);
+          }
+          if (this.pendingPermission) {
+            this.status =
+              this.pendingPermission.toolName === "AskUserQuestion" ? "awaiting-input" : "awaiting-permission";
+          } else if (this.status === "awaiting-permission" || this.status === "awaiting-input") {
             this.status = "processing";
           }
           resolvePromise(r);
           this.onChange();
         },
       };
+      if (this.pendingPermission) {
+        this.permissionBacklog.push(request);
+      } else {
+        this.pendingPermission = request;
+        this.status = toolName === "AskUserQuestion" ? "awaiting-input" : "awaiting-permission";
+      }
       this.onChange();
     });
   }
 
   async interrupt(): Promise<void> {
+    this.interrupted = true;
+    this.drainPermissions("session interrupted");
     await this.handle?.interrupt?.();
     this.status = "idle";
     this.onChange();
@@ -165,6 +226,7 @@ export class Session {
   }
 
   dispose(): void {
+    this.drainPermissions("session closed");
     this.queue?.end();
     this.queue = null;
     this.handle = null;
