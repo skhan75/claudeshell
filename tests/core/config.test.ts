@@ -51,4 +51,29 @@ describe("loadConfig", () => {
     const cfg = loadConfig({ globalDir, cwd: projectDir });
     expect(cfg.layout).toBe("sidebar");
   });
+
+  it("ignores structurally invalid pills and keys", () => {
+    writeFileSync(
+      join(globalDir, "config.toml"),
+      `pills = "oops"\n\n[keys]\npalette = 42\n`
+    );
+    const cfg = loadConfig({ globalDir, cwd: projectDir });
+    expect(cfg.pills).toEqual(DEFAULT_PILLS);
+    expect(cfg.keys.palette).toBe("ctrl+k");
+  });
+
+  it("drops pills missing a string label", () => {
+    writeFileSync(
+      join(globalDir, "config.toml"),
+      `[[pills]]\nprompt = "no label"\n\n[[pills]]\nlabel = "ok"\nprompt = "fine"\n`
+    );
+    const cfg = loadConfig({ globalDir, cwd: projectDir });
+    expect(cfg.pills.some((p) => p.label === undefined)).toBe(false);
+    expect(cfg.pills.find((p) => p.label === "ok")?.prompt).toBe("fine");
+  });
+
+  it("ignores non-object layout values", () => {
+    writeFileSync(join(globalDir, "config.toml"), `layout = "zen"\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).layout).toBe("sidebar");
+  });
 });

@@ -36,10 +36,35 @@ interface RawConfig {
   keys?: Record<string, string>;
 }
 
+function sanitize(raw: Record<string, unknown>): RawConfig {
+  const out: RawConfig = {};
+  const layout = raw.layout;
+  if (layout && typeof layout === "object" && typeof (layout as { default?: unknown }).default === "string") {
+    out.layout = { default: (layout as { default: string }).default };
+  }
+  if (Array.isArray(raw.pills)) {
+    out.pills = raw.pills.filter(
+      (p): p is Pill =>
+        !!p && typeof p === "object" &&
+        typeof (p as Pill).label === "string" &&
+        ((p as Pill).prompt === undefined || typeof (p as Pill).prompt === "string") &&
+        ((p as Pill).slash === undefined || typeof (p as Pill).slash === "string")
+    );
+  }
+  if (raw.keys && typeof raw.keys === "object") {
+    out.keys = Object.fromEntries(
+      Object.entries(raw.keys as Record<string, unknown>).filter(
+        (e): e is [string, string] => typeof e[1] === "string"
+      )
+    );
+  }
+  return out;
+}
+
 function readToml(path: string): RawConfig {
   if (!existsSync(path)) return {};
   try {
-    return parse(readFileSync(path, "utf8")) as RawConfig;
+    return sanitize(parse(readFileSync(path, "utf8")) as Record<string, unknown>);
   } catch {
     return {}; // malformed file → ignore, never crash the shell
   }
