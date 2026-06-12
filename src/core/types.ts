@@ -1,7 +1,7 @@
 export type TranscriptBlock =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string; streaming: boolean }
-  | { kind: "tool"; name: string; detail: string; status: "running" | "done" }
+  | { kind: "tool"; name: string; detail: string; status: "running" | "done"; id?: string }
   | { kind: "info"; text: string };
 
 export interface Usage {
@@ -52,6 +52,10 @@ export interface SdkMessage {
   };
   total_cost_usd?: number;
   num_turns?: number;
+  event?: {
+    type?: string;
+    delta?: { type?: string; text?: string };
+  };
 }
 
 export interface QueryHandle extends AsyncIterable<SdkMessage> {

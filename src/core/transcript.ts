@@ -7,6 +7,8 @@ interface ContentBlock {
   text?: string;
   name?: string;
   input?: Record<string, unknown>;
+  id?: string;
+  tool_use_id?: string;
 }
 
 function contentBlocks(msg: SdkMessage): ContentBlock[] {
@@ -49,6 +51,16 @@ export class Transcript {
       return;
     }
 
+    if (msg.type === "stream_event") {
+      const delta = msg.event?.delta;
+      if (msg.event?.type === "content_block_delta" && delta?.type === "text_delta" && typeof delta.text === "string") {
+        const last = this.blocks[this.blocks.length - 1];
+        if (last?.kind === "assistant" && last.streaming) last.text += delta.text;
+        else this.blocks.push({ kind: "assistant", text: delta.text, streaming: true });
+      }
+      return;
+    }
+
     if (msg.type === "partial_assistant") {
       const text = textOf(contentBlocks(msg));
       if (text === "") return;
@@ -72,7 +84,7 @@ export class Transcript {
       }
       for (const b of blocks) {
         if (b.type === "tool_use" && typeof b.name === "string") {
-          this.blocks.push({ kind: "tool", name: b.name, detail: summarize(b.name, b.input), status: "running" });
+          this.blocks.push({ kind: "tool", name: b.name, detail: summarize(b.name, b.input), status: "running", id: typeof b.id === "string" ? b.id : undefined });
           const fp = b.input?.file_path;
           if (FILE_TOOLS.has(b.name) && typeof fp === "string") this.contextFiles.add(fp);
         }
@@ -88,13 +100,25 @@ export class Transcript {
     }
 
     if (msg.type === "user") {
-      const hasToolResult = contentBlocks(msg).some((b) => b.type === "tool_result");
-      if (hasToolResult) {
-        for (let i = this.blocks.length - 1; i >= 0; i--) {
-          const b = this.blocks[i];
-          if (b.kind === "tool" && b.status === "running") {
-            b.status = "done";
-            break;
+      const results = contentBlocks(msg).filter((b) => b.type === "tool_result");
+      for (const r of results) {
+        let marked = false;
+        if (typeof r.tool_use_id === "string") {
+          for (const b of this.blocks) {
+            if (b.kind === "tool" && b.status === "running" && b.id === r.tool_use_id) {
+              b.status = "done";
+              marked = true;
+              break;
+            }
+          }
+        }
+        if (!marked) {
+          for (let i = this.blocks.length - 1; i >= 0; i--) {
+            const b = this.blocks[i];
+            if (b.kind === "tool" && b.status === "running") {
+              b.status = "done";
+              break;
+            }
           }
         }
       }

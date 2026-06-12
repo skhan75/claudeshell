@@ -57,4 +57,37 @@ describe("Transcript", () => {
     expect(t.usage.costUsd).toBeCloseTo(0.42);
     expect(t.usage.turns).toBe(3);
   });
+
+  it("appends raw stream_event text deltas (installed-SDK shape)", () => {
+    const t = new Transcript();
+    t.apply({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "Hel" } } });
+    t.apply({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "lo" } } });
+    expect(t.blocks[t.blocks.length - 1]).toMatchObject({ kind: "assistant", text: "Hello", streaming: true });
+  });
+
+  it("starts a new assistant block when streaming resumes after a tool block", () => {
+    const t = new Transcript();
+    t.apply({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "checking" } } });
+    t.apply({ type: "assistant", message: { content: [{ type: "text", text: "checking" }, { type: "tool_use", id: "tu1", name: "Read", input: { file_path: "/a" } }] } });
+    t.apply({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "found it" } } });
+    const kinds = t.blocks.map((b) => b.kind);
+    expect(kinds).toEqual(["assistant", "tool", "assistant"]);
+  });
+
+  it("marks ALL parallel tools done from one user message with multiple tool_results", () => {
+    const t = new Transcript();
+    t.apply({
+      type: "assistant",
+      message: { content: [
+        { type: "tool_use", id: "tu1", name: "Read", input: { file_path: "/a" } },
+        { type: "tool_use", id: "tu2", name: "Grep", input: {} },
+      ] },
+    });
+    t.apply({ type: "user", message: { content: [
+      { type: "tool_result", tool_use_id: "tu2" },
+      { type: "tool_result", tool_use_id: "tu1" },
+    ] } });
+    const tools = t.blocks.filter((b) => b.kind === "tool");
+    expect(tools.every((b) => b.kind === "tool" && b.status === "done")).toBe(true);
+  });
 });
