@@ -28,4 +28,24 @@ describe("history search", () => {
   it("returns empty for a missing project dir", () => {
     expect(searchHistory("/nope", "x", { claudeDir: "/does/not/exist" })).toEqual([]);
   });
+
+  it("respects the limit across many matches", () => {
+    const root = mkdtempSync(join(tmpdir(), "cs-hist-"));
+    const projDir = join(root, "projects", "-repo");
+    mkdirSync(projDir, { recursive: true });
+    const lines = Array.from({ length: 10 }, (_, i) =>
+      JSON.stringify({ type: "user", message: { role: "user", content: `needle ${i}` } })
+    ).join("\n");
+    writeFileSync(join(projDir, "a.jsonl"), lines);
+    expect(searchHistory("/repo", "needle", { claudeDir: root, limit: 4 })).toHaveLength(4);
+  });
+
+  it("skips files larger than the size cap", () => {
+    const root = mkdtempSync(join(tmpdir(), "cs-hist-"));
+    const projDir = join(root, "projects", "-repo");
+    mkdirSync(projDir, { recursive: true });
+    const bigLine = JSON.stringify({ type: "user", message: { role: "user", content: "needle " + "x".repeat(6_000_000) } });
+    writeFileSync(join(projDir, "big.jsonl"), bigLine);
+    expect(searchHistory("/repo", "needle", { claudeDir: root })).toEqual([]);
+  });
 });

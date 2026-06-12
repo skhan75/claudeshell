@@ -18,4 +18,21 @@ describe("SystemMonitor", () => {
     const stats = await mon.read();
     expect(stats.branch).toBeNull();
   });
+
+  it("start/stop: ticks repeatedly, never fires cb after stop", async () => {
+    let calls = 0;
+    const mon = new SystemMonitor("/repo", async () => "main\n");
+    await new Promise<void>((resolve) => {
+      mon.start(5, () => {
+        calls++;
+        if (calls === 3) {
+          mon.stop();
+          resolve();
+        }
+      });
+    });
+    const after = calls;
+    await new Promise((r) => setTimeout(r, 30));
+    expect(calls).toBe(after);
+  });
 });

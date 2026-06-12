@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+
+const MAX_FILE_BYTES = 5_000_000;
 
 export interface HistoryHit {
   file: string;
@@ -42,6 +44,7 @@ export function searchHistory(
   for (const file of readdirSync(dir).filter((f) => f.endsWith(".jsonl"))) {
     let raw: string;
     try {
+      if (statSync(join(dir, file)).size > MAX_FILE_BYTES) continue;
       raw = readFileSync(join(dir, file), "utf8");
     } catch {
       continue;

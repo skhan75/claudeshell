@@ -13,7 +13,8 @@ const realGitExec: GitExec = async (cwd) => {
 };
 
 export class SystemMonitor {
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private stopped = false;
 
   constructor(private cwd: string, private gitExec: GitExec = realGitExec) {}
 
@@ -34,13 +35,22 @@ export class SystemMonitor {
   }
 
   start(intervalMs: number, cb: (stats: HostStats) => void): void {
-    const tick = () => void this.read().then(cb).catch(() => {});
-    tick();
-    this.timer = setInterval(tick, intervalMs);
+    this.stopped = false;
+    const tick = async () => {
+      try {
+        const stats = await this.read();
+        if (!this.stopped) cb(stats);
+      } catch {
+        // read() never throws by design; belt-and-braces
+      }
+      if (!this.stopped) this.timer = setTimeout(tick, intervalMs);
+    };
+    void tick();
   }
 
   stop(): void {
-    if (this.timer) clearInterval(this.timer);
+    this.stopped = true;
+    if (this.timer) clearTimeout(this.timer);
     this.timer = null;
   }
 }
