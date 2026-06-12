@@ -31,7 +31,7 @@ function summarize(name: string, input: Record<string, unknown> | undefined): st
 
 export class Transcript {
   blocks: TranscriptBlock[] = [];
-  usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: 0, turns: 0 };
+  usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: 0, turns: 0, contextTokens: 0 };
   meta: SessionMeta = { slashCommands: [], mcpServers: [] };
   contextFiles = new Set<string>();
 
@@ -94,6 +94,7 @@ export class Transcript {
         this.usage.inputTokens += u.input_tokens ?? 0;
         this.usage.outputTokens += u.output_tokens ?? 0;
         this.usage.cacheReadTokens += u.cache_read_input_tokens ?? 0;
+        this.usage.contextTokens = (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
       }
       this.meta.model = msg.message?.model ?? this.meta.model;
       return;

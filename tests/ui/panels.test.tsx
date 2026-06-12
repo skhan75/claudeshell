@@ -61,3 +61,41 @@ describe("TelemetryStrip", () => {
     expect(frame).toContain("feature/mcp");
   });
 });
+
+describe("format edge cases", () => {
+  it("fmtUptime shows minutes under an hour", () => {
+    expect(fmtUptime(1800)).toBe("30m");
+  });
+  it("bar clamps out-of-range and non-finite pct", () => {
+    expect(bar(150, 4)).toBe("▓▓▓▓");
+    expect(bar(-10, 4)).toBe("░░░░");
+    expect(bar(Number.NaN, 4)).toBe("░░░░");
+  });
+  it("fmtK boundaries", () => {
+    expect(fmtK(999)).toBe("999");
+    expect(fmtK(1000)).toBe("1.0k");
+    expect(fmtK(1_200_000)).toBe("1.2M");
+  });
+});
+
+describe("SidePanel edge cases", () => {
+  it("renders cleanly with zero data", () => {
+    const ctx = makeCtx();
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("(no files yet)");
+    expect(frame).toContain("MODEL  —");
+    expect(frame).toContain("0%");
+  });
+  it("clamps the context percent label at 100", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    s.transcript.apply({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "x" }], usage: { input_tokens: 500_000, cache_read_input_tokens: 0, output_tokens: 1 } },
+    });
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("100%");
+    expect(frame).not.toMatch(/\d{3,}%.*\d/);
+  });
+});

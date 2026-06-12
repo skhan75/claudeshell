@@ -10,6 +10,8 @@ export interface Usage {
   cacheReadTokens: number;
   costUsd: number;
   turns: number;
+  /** input+cacheRead of the most recent assistant message — approximates current context-window occupancy. */
+  contextTokens: number;
 }
 
 export interface SessionMeta {

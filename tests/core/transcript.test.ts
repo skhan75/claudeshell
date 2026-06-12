@@ -90,4 +90,12 @@ describe("Transcript", () => {
     const tools = t.blocks.filter((b) => b.kind === "tool");
     expect(tools.every((b) => b.kind === "tool" && b.status === "done")).toBe(true);
   });
+
+  it("contextTokens reflects the LAST assistant message, not the sum", () => {
+    const t = new Transcript();
+    t.apply({ type: "assistant", message: { content: [{ type: "text", text: "a" }], usage: { input_tokens: 50_000, cache_read_input_tokens: 10_000, output_tokens: 1 } } });
+    t.apply({ type: "assistant", message: { content: [{ type: "text", text: "b" }], usage: { input_tokens: 60_000, cache_read_input_tokens: 20_000, output_tokens: 1 } } });
+    expect(t.usage.contextTokens).toBe(80_000);
+    expect(t.usage.inputTokens).toBe(110_000); // cumulative spend unchanged
+  });
 });

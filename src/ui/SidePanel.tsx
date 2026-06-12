@@ -17,7 +17,7 @@ export function SidePanel() {
   const u = s.transcript.usage;
   const meta = s.transcript.meta;
   const files = [...s.transcript.contextFiles].slice(-6);
-  const ctxPct = Math.round(((u.inputTokens + u.cacheReadTokens) / CONTEXT_WINDOW) * 100);
+  const ctxPct = Math.min(100, Math.round((u.contextTokens / CONTEXT_WINDOW) * 100));
 
   return (
     <Box flexDirection="column" width={30} paddingLeft={1}>

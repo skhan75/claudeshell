@@ -12,7 +12,7 @@ export function TelemetryStrip() {
   if (!s) return null;
   const u = s.transcript.usage;
   const meta = s.transcript.meta;
-  const ctxPct = Math.round(((u.inputTokens + u.cacheReadTokens) / CONTEXT_WINDOW) * 100);
+  const ctxPct = Math.min(100, Math.round((u.contextTokens / CONTEXT_WINDOW) * 100));
   const mcp = meta.mcpServers.map((m) => m.name).join(",");
 
   return (
