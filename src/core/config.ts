@@ -99,6 +99,6 @@ export function loadConfig(opts: { globalDir?: string; cwd?: string } = {}): Con
     layout: layoutRaw === "zen" ? "zen" : "sidebar",
     pills: mergePills(mergePills(DEFAULT_PILLS, g.pills), p.pills),
     keys: { ...DEFAULT_KEYS, ...g.keys, ...p.keys },
-    models: p.models ?? g.models ?? DEFAULT_MODELS,
+    models: (p.models?.length ? p.models : undefined) ?? (g.models?.length ? g.models : undefined) ?? DEFAULT_MODELS,
   };
 }

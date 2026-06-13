@@ -73,6 +73,7 @@ export class Session {
   private handle: QueryHandle | null = null;
   private queryFn: QueryFn;
   private claudeId?: string;
+  private model?: string;
   private onChange: () => void;
   private titled: boolean;
 
@@ -120,6 +121,7 @@ export class Session {
         this.requestPermission(toolName, input, (o?.suggestions ?? []) as PermissionRequest["suggestions"]),
     };
     if (this.claudeId) options.resume = this.claudeId;
+    if (this.model) options.model = this.model;
     this.handle = this.queryFn({ prompt: this.queue, options });
     void this.pump();
   }
@@ -220,6 +222,7 @@ export class Session {
   }
 
   async setModel(model: string): Promise<void> {
+    this.model = model;
     await this.handle?.setModel?.(model);
     this.transcript.meta.model = model;
     this.onChange();

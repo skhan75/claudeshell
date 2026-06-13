@@ -45,6 +45,7 @@ export class Transcript {
 
   apply(msg: SdkMessage): void {
     if (msg.type === "system" && msg.subtype === "init") {
+      // server-reported model wins over a user selection — displayed model is SDK truth
       this.meta.model = msg.model ?? this.meta.model;
       this.meta.mcpServers = msg.mcp_servers ?? this.meta.mcpServers;
       this.meta.slashCommands = msg.slash_commands ?? this.meta.slashCommands;

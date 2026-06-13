@@ -83,4 +83,9 @@ describe("loadConfig", () => {
     writeFileSync(join(globalDir, "config.toml"), `models = ["my-model"]\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).models).toEqual(["my-model"]);
   });
+
+  it("empty models array falls back to defaults", () => {
+    writeFileSync(join(globalDir, "config.toml"), `models = []\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).models).toEqual(DEFAULT_MODELS);
+  });
 });

@@ -233,4 +233,16 @@ describe("Session", () => {
     s.dispose();
     await vi.waitFor(() => expect(result?.behavior).toBe("deny"));
   });
+
+  it("setModel before first send reaches the SDK options", async () => {
+    const capture: { options?: Record<string, unknown> } = {};
+    const s = new Session({
+      id: "s1", cwd: "/tmp",
+      queryFn: scriptedQuery([{ type: "result", subtype: "success" }], capture),
+    });
+    await s.setModel("claude-sonnet-4-6");
+    s.send("hello");
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+    expect(capture.options?.model).toBe("claude-sonnet-4-6");
+  });
 });
