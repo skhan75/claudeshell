@@ -53,6 +53,13 @@ function lazyQuery(): QueryFn {
           // best effort
         }
       },
+      close: async () => {
+        try {
+          await (await handlePromise).close?.();
+        } catch {
+          // best effort
+        }
+      },
     };
   };
 }
@@ -239,6 +246,7 @@ export class Session {
   }
 
   dispose(): void {
+    void this.handle?.close?.();
     this.drainPermissions("session closed");
     this.queue?.end();
     this.queue = null;

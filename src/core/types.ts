@@ -66,6 +66,7 @@ export interface QueryHandle extends AsyncIterable<SdkMessage> {
   interrupt?(): Promise<void>;
   setPermissionMode?(mode: string): Promise<void>;
   setModel?(model: string): Promise<void>;
+  close?(): void | Promise<void>;
 }
 
 export type QueryFn = (args: {

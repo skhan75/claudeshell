@@ -245,4 +245,50 @@ describe("Session", () => {
     await vi.waitFor(() => expect(s.status).toBe("idle"));
     expect(capture.options?.model).toBe("claude-sonnet-4-6");
   });
+
+  it("dispose() calls close() on the handle when one exists (subprocess teardown)", async () => {
+    const closeSpy = vi.fn(async () => {});
+    const queryFn: QueryFn = ({ prompt }) => {
+      async function* gen(): AsyncGenerator<SdkMessage> {
+        for await (const _ of prompt) {
+          // Yield nothing — hang waiting for more input
+          await new Promise(() => {}); // never resolves
+        }
+      }
+      const g = gen();
+      return Object.assign(g, {
+        interrupt: vi.fn(async () => {}),
+        setPermissionMode: vi.fn(async () => {}),
+        close: closeSpy,
+      });
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.send("go");
+    // Wait for pump to start and handle to be set
+    await vi.waitFor(() => expect(s.status).toBe("processing"));
+    s.dispose();
+    expect(closeSpy).toHaveBeenCalledOnce();
+  });
+
+  it("dispose() does not throw when handle has no close method (optional-chaining path)", async () => {
+    const queryFn: QueryFn = ({ prompt }) => {
+      async function* gen(): AsyncGenerator<SdkMessage> {
+        for await (const _ of prompt) {
+          await new Promise(() => {}); // hang
+        }
+      }
+      // No close property — only interrupt to satisfy existing session logic
+      return Object.assign(gen(), { interrupt: vi.fn(async () => {}) });
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.send("go");
+    await vi.waitFor(() => expect(s.status).toBe("processing"));
+    expect(() => s.dispose()).not.toThrow();
+  });
+
+  it("dispose() does not throw when no query was ever started (handle is null)", () => {
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn: scriptedQuery([]) });
+    // Never called send(), so handle is null
+    expect(() => s.dispose()).not.toThrow();
+  });
 });
