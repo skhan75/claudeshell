@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Box, useInput } from "ink";
+import { Box, Text, useInput, useStdout } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { matchKey } from "./keys.js";
 import { TabBar } from "./TabBar.js";
@@ -21,8 +21,21 @@ export function App() {
 
   useEffect(() => manager.subscribe(() => store.getState().bump()), [manager, store]);
 
+  const { stdout } = useStdout();
+  useEffect(() => {
+    const onResize = () => store.getState().bump();
+    stdout?.on("resize", onResize);
+    return () => {
+      stdout?.off("resize", onResize);
+    };
+  }, [stdout, store]);
+
   useInput(
     (input, key) => {
+      if (session?.status === "crashed" && input === "r") {
+        session.resume();
+        return;
+      }
       const st = store.getState();
       if (matchKey(config.keys.palette, input, key)) return st.setPaletteOpen(true);
       if (matchKey(config.keys.layoutToggle, input, key)) return st.toggleLayout();
@@ -42,6 +55,10 @@ export function App() {
     },
     { isActive: !pending && !paletteOpen }
   );
+
+  if ((stdout?.columns ?? 80) < 60 || (stdout?.rows ?? 24) < 14) {
+    return <Text color="yellow">terminal too small for claudeshell — resize to at least 60×14</Text>;
+  }
 
   return (
     <Box flexDirection="column">

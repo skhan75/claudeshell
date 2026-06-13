@@ -134,6 +134,7 @@ export class Session {
     } catch (err) {
       this.status = "crashed";
       this.error = err instanceof Error ? err.message : String(err);
+      this.transcript.addInfo(`✖ session crashed: ${this.error} — press r to resume`);
       this.queue = null;
       this.handle = null;
       // dialogs can never be answered on a dead stream
