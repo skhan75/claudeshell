@@ -30,18 +30,16 @@ export function PermissionDialog({ request }: { request: PermissionRequest }) {
       else if (input && !key.ctrl && !key.meta) setReason((r) => r + input);
       return;
     }
-    // Use input[0] so that rapid double-key batches (e.g. "yy") still trigger once.
-    const ch = input[0];
-    if (ch === "y") {
+    if (input === "y") {
       resolveOnce({ behavior: "allow", updatedInput: request.input });
-    } else if (ch === "a") {
+    } else if (input === "a") {
       const persist = request.suggestions.filter((s) => s.destination === "localSettings");
       resolveOnce({
         behavior: "allow",
         updatedInput: request.input,
         updatedPermissions: (persist.length > 0 ? persist : request.suggestions) as unknown[],
       });
-    } else if (ch === "n" && input.length === 1) {
+    } else if (input === "n") {
       setDenying(true);
     }
   });

@@ -178,8 +178,18 @@ describe("PermissionDialog — pinning tests", () => {
     const { request, resolved } = makeRequest();
     const { stdin } = renderWithCtx(<PermissionDialog request={request} />);
     await tick();
-    stdin.write("yy"); // two keys in one chunk, no tick between
+    stdin.write("y");
+    stdin.write("y"); // second event before any re-render
     await tick();
     expect(resolved).toHaveLength(1);
+  });
+
+  it("a pasted multi-char chunk does not trigger permission keys", async () => {
+    const { request, resolved } = makeRequest();
+    const { stdin } = renderWithCtx(<PermissionDialog request={request} />);
+    await tick();
+    stdin.write("yes do it"); // paste-like chunk — must NOT resolve
+    await tick();
+    expect(resolved).toHaveLength(0);
   });
 });
