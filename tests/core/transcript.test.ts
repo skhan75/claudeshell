@@ -98,4 +98,44 @@ describe("Transcript", () => {
     expect(t.usage.contextTokens).toBe(80_000);
     expect(t.usage.inputTokens).toBe(110_000); // cumulative spend unchanged
   });
+
+  it("contextTokens includes cache_creation_input_tokens (FIX 1 pinning)", () => {
+    const t = new Transcript();
+    t.apply({
+      type: "assistant",
+      message: {
+        content: [{ type: "text", text: "x" }],
+        usage: { input_tokens: 40_000, cache_read_input_tokens: 10_000, cache_creation_input_tokens: 30_000, output_tokens: 1 },
+      },
+    });
+    expect(t.usage.contextTokens).toBe(80_000);
+  });
+
+  it("assistant message with error field appends an info block (FIX 2a pinning)", () => {
+    const t = new Transcript();
+    t.apply({
+      type: "assistant",
+      message: { content: [], usage: undefined },
+      error: "authentication_failed",
+    } as unknown as Parameters<Transcript["apply"]>[0]);
+    const infos = t.blocks.filter((b) => b.kind === "info");
+    expect(infos.length).toBeGreaterThan(0);
+    expect(infos.some((b) => b.kind === "info" && b.text.includes("authentication_failed"))).toBe(true);
+  });
+
+  it("result message with error subtype and errors array includes subtype and errors (FIX 2b pinning)", () => {
+    const t = new Transcript();
+    t.apply({
+      type: "result",
+      subtype: "error_max_turns",
+      total_cost_usd: 0,
+      num_turns: 1,
+      errors: ["boom"],
+    } as unknown as Parameters<Transcript["apply"]>[0]);
+    const infos = t.blocks.filter((b) => b.kind === "info");
+    expect(infos.length).toBeGreaterThan(0);
+    const text = infos[infos.length - 1];
+    expect(text.kind === "info" && text.text.includes("error_max_turns")).toBe(true);
+    expect(text.kind === "info" && text.text.includes("boom")).toBe(true);
+  });
 });

@@ -95,9 +95,13 @@ export class Transcript {
         this.usage.inputTokens += u.input_tokens ?? 0;
         this.usage.outputTokens += u.output_tokens ?? 0;
         this.usage.cacheReadTokens += u.cache_read_input_tokens ?? 0;
-        this.usage.contextTokens = (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+        this.usage.contextTokens = (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
       }
       this.meta.model = msg.message?.model ?? this.meta.model;
+      const err = (msg as { error?: unknown }).error;
+      if (err !== undefined) {
+        this.addInfo(`✖ ${typeof err === "string" ? err : JSON.stringify(err)}`);
+      }
       return;
     }
 
@@ -130,7 +134,10 @@ export class Transcript {
     if (msg.type === "result") {
       if (typeof msg.total_cost_usd === "number") this.usage.costUsd = msg.total_cost_usd;
       if (typeof msg.num_turns === "number") this.usage.turns = msg.num_turns;
-      if (msg.subtype && msg.subtype !== "success") this.addInfo(`result: ${msg.subtype}`);
+      if (msg.subtype && msg.subtype !== "success") {
+        const errs = (msg as { errors?: string[] }).errors;
+        this.addInfo(`result: ${msg.subtype}${errs?.length ? ": " + errs.join("; ") : ""}`);
+      }
     }
   }
 }
