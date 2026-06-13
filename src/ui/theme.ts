@@ -27,6 +27,7 @@ const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 /** Read overrides from <themesDir>/<name>.toml; built-in/missing themes yield {}. */
 export function loadThemeOverrides(name: string, themesDir: string): Partial<Theme> {
   if (name === "cyberpunk") return {};
+  if (!/^[a-z0-9-]+$/.test(name)) return {};
   const path = join(themesDir, `${name}.toml`);
   if (!existsSync(path)) return {};
   try {
