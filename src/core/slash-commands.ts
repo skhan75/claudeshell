@@ -49,3 +49,16 @@ export function effectiveSlashCommands(reported: readonly string[]): string[] {
   const live = reported.map((c) => (c.startsWith("/") ? c : "/" + c));
   return live.length > 0 ? live : DEFAULT_SLASH_COMMANDS;
 }
+
+/**
+ * Slash commands claudeshell handles itself (the SDK's `query()` does NOT process
+ * CLI slash commands — sending `/model` just returns "isn't available"). These map a
+ * command to an app overlay that does the real thing; callers run the overlay instead
+ * of sending the text. (Values are a subset of the store's Overlay union.)
+ */
+export const APP_SLASH_OVERLAY: Record<string, "models" | "help"> = {
+  "/model": "models",
+  "/models": "models",
+  "/help": "help",
+};
+

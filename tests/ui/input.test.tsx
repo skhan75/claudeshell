@@ -79,8 +79,9 @@ describe("InputBar", () => {
     // Apply a live init, then typing "/" surfaces exactly those commands; the picker
     // is navigable (arrow moves the highlight, Enter inserts and does NOT send).
     const ctx = makeCtx();
+    // Use non-app-handled commands so Enter inserts (rather than running, like /model).
     ctx.manager.active!.transcript.apply({
-      type: "system", subtype: "init", slash_commands: ["/clear", "/model"],
+      type: "system", subtype: "init", slash_commands: ["/clear", "/cost"],
     });
     ctx.store.getState().bump();
     const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
@@ -89,8 +90,8 @@ describe("InputBar", () => {
     await tick();
     const frame = lastFrame()!;
     expect(frame).toContain("/clear");
-    expect(frame).toContain("/model");
-    const second = ["/clear", "/model"].sort(
+    expect(frame).toContain("/cost");
+    const second = ["/clear", "/cost"].sort(
       (a, b) => frame.indexOf(a) - frame.indexOf(b)
     )[1];
     stdin.write("\x1b[B"); // Down → 2nd command
@@ -99,6 +100,21 @@ describe("InputBar", () => {
     await tick();
     expect(ctx.manager.active!.transcript.blocks).toHaveLength(0);
     expect(lastFrame()).toContain("▸ " + second);
+  });
+
+  it("/model opens the model picker overlay instead of being sent as a prompt", async () => {
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("/model"); // dropdown shows /model
+    await tick();
+    stdin.write("\x1b"); // dismiss the picker so the next Enter submits the line
+    await tick();
+    stdin.write("\r"); // submit "/model" → routes to the model picker, not the SDK
+    await tick();
+    expect(ctx.store.getState().overlay).toBe("models");
+    // It must NOT have been sent as a prompt.
+    expect(ctx.manager.active!.transcript.blocks).toHaveLength(0);
   });
 
   it("autocompletes a real slash command with tab", async () => {

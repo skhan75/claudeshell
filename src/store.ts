@@ -3,7 +3,7 @@ import type { HostStats } from "./core/types.js";
 
 export type Layout = "sidebar" | "zen";
 export type Focus = "input" | "scroll" | "explorer";
-export type Overlay = "help" | "sessions" | "buffers" | null;
+export type Overlay = "help" | "sessions" | "buffers" | "models" | null;
 /** Left IDE explorer pane: a project file tree, or hidden. */
 export type LeftPanel = "files" | "hidden";
 

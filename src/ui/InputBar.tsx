@@ -5,10 +5,10 @@ import { theme } from "./theme.js";
 import { Keycap, FilledLine, SIDEBAR_WIDTH, INPUT_BORDER, INPUT_BORDER_FOCUS, INPUT_BG } from "./chrome.js";
 import { fuzzyFilter } from "../core/fuzzy.js";
 import { listProjectFilesCached } from "../core/files.js";
-import { effectiveSlashCommands } from "../core/slash-commands.js";
+import { effectiveSlashCommands, APP_SLASH_OVERLAY } from "../core/slash-commands.js";
 
 export function InputBar({ width: widthProp }: { width?: number } = {}) {
-  const { manager, config } = useAppCtx();
+  const { manager, config, store } = useAppCtx();
   useApp((s) => s.version);
   const focus = useApp((s) => s.focus);
   const paletteOpen = useApp((s) => s.paletteOpen);
@@ -75,6 +75,24 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
     setDismissed(false);
   };
 
+  // App-handled slash commands route to their overlay (model picker, help, …) since
+  // the SDK query can't run CLI slash commands. Returns true if it handled the command.
+  const runSlash = (cmd: string): boolean => {
+    const ov = APP_SLASH_OVERLAY[cmd.trim()];
+    if (ov) {
+      store.getState().setOverlay(ov);
+      return true;
+    }
+    return false;
+  };
+
+  const clearInput = () => {
+    setText("");
+    setSel(0);
+    setDismissed(false);
+    setHistIdx(null);
+  };
+
   // Insert the highlighted suggestion into the input, replacing the active
   // token, and append a trailing space (which dismisses the picker naturally).
   const insertSelected = () => {
@@ -100,6 +118,11 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
           return;
         }
         if (key.return || key.tab) {
+          // Enter on an app-handled command (e.g. /model) runs it instead of inserting.
+          if (key.return && picker === "slash" && runSlash(suggestions[selIdx])) {
+            clearInput();
+            return;
+          }
           insertSelected();
           return;
         }
@@ -113,14 +136,17 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
 
       if (key.return) {
         const t = text.trim();
+        // App-handled slash commands run their action (the SDK query can't process
+        // CLI slash commands, so we never send those as prompts).
+        if (t !== "" && runSlash(t)) {
+          clearInput();
+          return;
+        }
         if (t !== "") {
           session?.send(t);
           setHistory((h) => (h[h.length - 1] === t ? h : [...h, t]));
         }
-        setText("");
-        setSel(0);
-        setDismissed(false);
-        setHistIdx(null);
+        clearInput();
         return;
       }
       // ↑/↓ (no picker open) walk the submitted-prompt history.

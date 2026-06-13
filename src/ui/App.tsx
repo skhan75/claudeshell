@@ -10,6 +10,7 @@ import { TelemetryStrip } from "./TelemetryStrip.js";
 import { InputBar } from "./InputBar.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { HelpOverlay } from "./HelpOverlay.js";
+import { ModelPicker } from "./ModelPicker.js";
 import { SessionsOverlay } from "./SessionsOverlay.js";
 import { BuffersOverlay } from "./BuffersOverlay.js";
 import { TerminalPane } from "./TerminalPane.js";
@@ -273,6 +274,10 @@ export function App() {
         ) : overlay === "buffers" ? (
           <Box flexDirection="column" flexGrow={1}>
             <BuffersOverlay onClose={() => store.getState().setOverlay(null)} />
+          </Box>
+        ) : overlay === "models" ? (
+          <Box flexDirection="column" flexGrow={1}>
+            <ModelPicker onClose={() => store.getState().setOverlay(null)} />
           </Box>
         ) : paletteOpen ? (
           <Box flexDirection="column" flexGrow={1}>

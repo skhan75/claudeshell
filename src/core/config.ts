@@ -24,7 +24,14 @@ export const DEFAULT_PILLS: Pill[] = [
   { label: "review", slash: "/review" },
 ];
 
-export const DEFAULT_MODELS = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
+export const DEFAULT_MODELS = [
+  "claude-opus-4-8",
+  "claude-opus-4-7",
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5",
+  "claude-fable-5",
+];
 
 export const DEFAULT_KEYS: Record<string, string> = {
   palette: "ctrl+k",

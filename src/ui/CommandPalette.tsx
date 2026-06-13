@@ -4,7 +4,7 @@ import { useApp, useAppCtx, type AppCtx } from "./context.js";
 import { theme } from "./theme.js";
 import { fuzzyFilter } from "../core/fuzzy.js";
 import { searchHistory, type HistoryHit } from "../core/history-search.js";
-import { effectiveSlashCommands } from "../core/slash-commands.js";
+import { effectiveSlashCommands, APP_SLASH_OVERLAY } from "../core/slash-commands.js";
 
 export interface PaletteItem {
   label: string;
@@ -35,6 +35,8 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
   }
   items.push({ label: "action: search history", mode: "history", run: () => {} });
 
+  items.push({ label: "action: switch model →", run: () => store.getState().setOverlay("models") });
+
   for (const mode of ["default", "plan", "acceptEdits", "bypassPermissions"]) {
     items.push({ label: `mode: ${mode}`, run: () => void session?.setPermissionMode(mode) });
   }
@@ -55,7 +57,12 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
 
   const slashCommands = effectiveSlashCommands(session?.transcript.meta.slashCommands ?? []);
   for (const cmd of slashCommands) {
-    items.push({ label: `slash: ${cmd}`, run: () => session?.send(cmd) });
+    const overlay = APP_SLASH_OVERLAY[cmd];
+    items.push({
+      label: `slash: ${cmd}`,
+      // App-handled commands open their overlay; the rest are sent to the session.
+      run: overlay ? () => store.getState().setOverlay(overlay) : () => session?.send(cmd),
+    });
   }
 
   return items;
