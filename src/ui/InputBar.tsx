@@ -21,7 +21,7 @@ export function InputBar() {
       ? fuzzyFilter(slashCommands, text.slice(1), (c) => c.slice(1)).slice(0, 5)
       : [];
 
-  const isActive = focus === "input" && !paletteOpen && !manager.active?.pendingPermission;
+  const isActive = focus === "input" && !paletteOpen && !manager.active?.pendingPermission && session?.status !== "crashed";
 
   useInput(
     (input, key) => {

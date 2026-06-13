@@ -3,24 +3,23 @@ import React from "react";
 import { render } from "ink";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { join } from "node:path";
-import { homedir } from "node:os";
 import { App } from "./ui/App.js";
 import { AppContext } from "./ui/context.js";
 import { createAppStore } from "./store.js";
 import { SessionManager } from "./core/session-manager.js";
 import { SystemMonitor } from "./core/system-monitor.js";
 import { loadConfig } from "./core/config.js";
+import { statePathFor } from "./core/persistence.js";
 
 const pExecFile = promisify(execFile);
 
 async function preflight(): Promise<string | null> {
   try {
-    await pExecFile("claude", ["--version"]);
+    await pExecFile("claude", ["--version"], { timeout: 3000, shell: process.platform === "win32" });
     return null;
   } catch {
     return [
-      "warning: `claude` CLI not found on PATH.",
+      "warning: could not run `claude --version` — is Claude Code installed and on PATH?",
       "claudeshell runs on the bundled Agent SDK, but Claude Code is recommended for auth:",
       "  npm install -g @anthropic-ai/claude-code && claude  (then /login)",
     ].join("\n");
@@ -35,12 +34,11 @@ async function main() {
   const config = loadConfig({ cwd });
   const manager = new SessionManager({
     cwd,
-    statePath: join(homedir(), ".claudeshell", "state.json"),
+    statePath: statePathFor(cwd),
   });
   manager.restoreState();
 
   const store = createAppStore(config.layout);
-  manager.subscribe(() => store.getState().bump());
 
   const monitor = new SystemMonitor(cwd);
   monitor.start(5000, (stats) => store.getState().setHostStats(stats));
@@ -58,6 +56,10 @@ async function main() {
     cleanup();
     process.exit(0);
   });
+  process.on("SIGINT", () => {
+    cleanup();
+    process.exit(0);
+  });
 
   const instance = render(
     <AppContext.Provider value={{ manager, config, store }}>
@@ -69,4 +71,7 @@ async function main() {
   cleanup();
 }
 
-void main();
+main().catch((err) => {
+  console.error(err instanceof Error ? err.stack ?? err.message : String(err));
+  process.exit(1);
+});

@@ -70,6 +70,17 @@ describe("InputBar", () => {
     expect(lastFrame()).toContain("❯ read @");
     expect(lastFrame()).not.toContain("@."); // no surprise first-file completion
   });
+
+  it("goes inert when the session is crashed (resume key cannot pollute input)", async () => {
+    const ctx = makeCtx();
+    ctx.manager.active!.status = "crashed";
+    ctx.store.getState().bump();
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("r");
+    await tick();
+    expect(lastFrame()).not.toContain("❯ r");
+  });
 });
 
 describe("PillBar", () => {

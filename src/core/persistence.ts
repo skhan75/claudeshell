@@ -1,5 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
+import { homedir } from "node:os";
+
+/** Per-project state file — cwd slug mirrors Claude Code's project naming. */
+export function statePathFor(cwd: string): string {
+  return join(homedir(), ".claudeshell", "state", cwd.replace(/[/.]/g, "-") + ".json");
+}
 
 export interface SavedSession {
   id: string;

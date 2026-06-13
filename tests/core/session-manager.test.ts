@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { SessionManager } from "../../src/core/session-manager.js";
-import { loadState } from "../../src/core/persistence.js";
+import { loadState, statePathFor } from "../../src/core/persistence.js";
 import type { QueryFn } from "../../src/core/types.js";
 
 const noopQuery: QueryFn = ({ prompt }) => {
@@ -75,6 +75,14 @@ describe("SessionManager", () => {
     m.activate(1); // b active
     m.close(a.id);
     expect(m.active?.id).toBe(b.id);
+  });
+
+  it("statePathFor scopes state files per project cwd", () => {
+    const a = statePathFor("/projects/alpha");
+    const b = statePathFor("/projects/beta");
+    expect(a).not.toBe(b);
+    expect(a.endsWith("-projects-alpha.json")).toBe(true);
+    expect(a).toContain(join(".claudeshell", "state"));
   });
 
   it("clamps activeIndex when closing the last tab while it is active", () => {
