@@ -7,7 +7,6 @@ import { ChatPane } from "./ChatPane.js";
 import { SidePanel } from "./SidePanel.js";
 import { TelemetryStrip } from "./TelemetryStrip.js";
 import { InputBar } from "./InputBar.js";
-import { PillBar } from "./PillBar.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { HelpOverlay } from "./HelpOverlay.js";
 import { SessionsOverlay } from "./SessionsOverlay.js";
@@ -226,7 +225,6 @@ export function App() {
               <>
                 {session?.status === "processing" && <ActivityIndicator />}
                 <InputBar />
-                <PillBar />
               </>
             )}
           </Box>

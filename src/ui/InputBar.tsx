@@ -7,7 +7,7 @@ import { fuzzyFilter } from "../core/fuzzy.js";
 import { listProjectFilesCached } from "../core/files.js";
 
 export function InputBar() {
-  const { manager, store } = useAppCtx();
+  const { manager } = useAppCtx();
   useApp((s) => s.version);
   const focus = useApp((s) => s.focus);
   const paletteOpen = useApp((s) => s.paletteOpen);
@@ -22,6 +22,8 @@ export function InputBar() {
   const session = manager.active;
   const focused = focus === "input";
 
+  // Slash source is the real CLI command list the SDK reports on the session's
+  // transcript meta (populated eagerly). Normalize each entry to a leading "/".
   const slashCommands = (session?.transcript.meta.slashCommands ?? []).map((c) =>
     c.startsWith("/") ? c : "/" + c
   );
@@ -109,10 +111,9 @@ export function InputBar() {
         return;
       }
       if (key.tab) {
-        if (text === "") {
-          store.getState().setFocus("pills");
-          return;
-        }
+        // No picker is open here (the picker branch above already consumed Tab).
+        // Complete the active @/slash token if one is present; otherwise do nothing.
+        if (picker) insertSelected();
         return;
       }
       if (key.backspace || key.delete) {
@@ -148,7 +149,7 @@ export function InputBar() {
           <Text color={theme.fg}>{text}</Text>
           {focused && <Text color={theme.accent}>▋</Text>}
           {text === "" && (
-            <Text dimColor> Enter prompt — Tab: pills · /: commands · @: files</Text>
+            <Text dimColor> Enter send · / commands · @ files · ↑↓ pick</Text>
           )}
         </Box>
       </Panel>

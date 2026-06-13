@@ -21,6 +21,7 @@ describe("buildPaletteItems", () => {
     expect(labels).toContain("action: search history");
     expect(labels.some((l) => l.startsWith("mode:"))).toBe(true);
     expect(labels).toContain("pill: fix tests");
+    // The real CLI command reported via the live init appears as a slash item.
     expect(labels).toContain("slash: /commit");
   });
 

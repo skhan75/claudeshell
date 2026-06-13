@@ -4,7 +4,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup as cleanupInk } from "ink-testing-library";
 import { InputBar } from "../../src/ui/InputBar.js";
-import { PillBar } from "../../src/ui/PillBar.js";
 import { renderWithCtx, makeCtx, tick } from "./helpers.js";
 
 afterEach(cleanupInk);
@@ -22,7 +21,34 @@ describe("InputBar", () => {
     expect(blocks[0]).toMatchObject({ kind: "user", text: "hi claude" });
   });
 
-  it("autocompletes slash commands with tab", async () => {
+  it("typing / shows the real CLI commands from the live init and the picker is navigable", async () => {
+    // The SDK populates transcript.meta.slashCommands with the real CLI commands.
+    // Apply a live init, then typing "/" surfaces exactly those commands; the picker
+    // is navigable (arrow moves the highlight, Enter inserts and does NOT send).
+    const ctx = makeCtx();
+    ctx.manager.active!.transcript.apply({
+      type: "system", subtype: "init", slash_commands: ["/clear", "/model"],
+    });
+    ctx.store.getState().bump();
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("/");
+    await tick();
+    const frame = lastFrame()!;
+    expect(frame).toContain("/clear");
+    expect(frame).toContain("/model");
+    const second = ["/clear", "/model"].sort(
+      (a, b) => frame.indexOf(a) - frame.indexOf(b)
+    )[1];
+    stdin.write("\x1b[B"); // Down → 2nd command
+    await tick();
+    stdin.write("\r"); // Enter inserts the highlighted command, does NOT send
+    await tick();
+    expect(ctx.manager.active!.transcript.blocks).toHaveLength(0);
+    expect(lastFrame()).toContain("❯ " + second);
+  });
+
+  it("autocompletes a real slash command with tab", async () => {
     const ctx = makeCtx();
     ctx.manager.active!.transcript.apply({
       type: "system", subtype: "init", slash_commands: ["/commit", "/review"],
@@ -30,7 +56,8 @@ describe("InputBar", () => {
     ctx.store.getState().bump();
     const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
     await tick();
-    stdin.write("/com");
+    // "/commit" is the unambiguous prefix match among the live list.
+    stdin.write("/commi");
     await tick();
     expect(lastFrame()).toContain("/commit");
     stdin.write("\t");
@@ -38,27 +65,20 @@ describe("InputBar", () => {
     expect(lastFrame()).toContain("❯ /commit");
   });
 
-  it("tab on empty input hands focus to pills", async () => {
-    const ctx = makeCtx();
-    const { stdin } = renderWithCtx(<InputBar />, ctx);
-    await tick();
-    stdin.write("\t");
-    await tick();
-    expect(ctx.store.getState().focus).toBe("pills");
-  });
-
   it("ranks slash prefix matches first (slash excluded from scoring)", async () => {
     const ctx = makeCtx();
     ctx.manager.active!.transcript.apply({
-      type: "system", subtype: "init", slash_commands: ["/xcom", "/commit"],
+      type: "system", subtype: "init", slash_commands: ["/xcommit", "/commit"],
     });
     ctx.store.getState().bump();
     const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
     await tick();
-    stdin.write("/com");
+    // "commi" is a prefix of "/commit" (prefix bonus) but only a scattered match in
+    // "/xcommit", so both appear and "/commit" outranks "/xcommit".
+    stdin.write("/commi");
     await tick();
     const frame = lastFrame()!;
-    expect(frame.indexOf("/commit")).toBeLessThan(frame.indexOf("/xcom"));
+    expect(frame.indexOf("/commit")).toBeLessThan(frame.indexOf("/xcommit"));
   });
 
   it("bare @ shows a live file suggestion and Tab completes to the top file", async () => {
@@ -203,16 +223,18 @@ describe("InputBar", () => {
 
   it("slash picker: Down/Up navigate and Enter inserts without sending", async () => {
     const ctx = makeCtx();
+    // "des" is a subsequence of only these two live commands, so the picker shows
+    // exactly these two, making navigation deterministic.
     ctx.manager.active!.transcript.apply({
-      type: "system", subtype: "init", slash_commands: ["/commit", "/compact"],
+      type: "system", subtype: "init", slash_commands: ["/destroy", "/desktop"],
     });
     ctx.store.getState().bump();
     const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
     await tick();
-    stdin.write("/com");
+    stdin.write("/des");
     await tick();
     const frame = lastFrame()!;
-    const second = ["/commit", "/compact"].sort(
+    const second = ["/destroy", "/desktop"].sort(
       (a, b) => frame.indexOf(a) - frame.indexOf(b)
     )[1];
     stdin.write("\x1b[B"); // Down → 2nd command
@@ -247,20 +269,5 @@ describe("InputBar", () => {
     stdin.write("\x1b"); // Esc dismisses the picker
     await tick();
     expect(lastFrame()).not.toContain("@ files");
-  });
-});
-
-describe("PillBar", () => {
-  it("fires the selected pill into the session and returns focus to input", async () => {
-    const ctx = makeCtx();
-    ctx.store.getState().setFocus("pills");
-    const { stdin } = renderWithCtx(<PillBar />, ctx);
-    await tick();
-    stdin.write("\r"); // fire first default pill: "fix tests"
-    await tick();
-    const blocks = ctx.manager.active!.transcript.blocks;
-    expect(blocks[0]).toMatchObject({ kind: "user" });
-    expect((blocks[0] as { text: string }).text).toContain("test");
-    expect(ctx.store.getState().focus).toBe("input");
   });
 });

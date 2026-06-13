@@ -2,7 +2,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { HostStats } from "./core/types.js";
 
 export type Layout = "sidebar" | "zen";
-export type Focus = "input" | "scroll" | "pills";
+export type Focus = "input" | "scroll";
 export type Overlay = "help" | "sessions" | "buffers" | null;
 
 export interface AppState {

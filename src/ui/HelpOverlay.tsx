@@ -166,8 +166,8 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
       key: "input-tab",
       group: "Input",
       binding: "Tab",
-      label: "Pills / complete",
-      desc: "In the input bar, Tab cycles the quick-action pills and completes the open picker selection.",
+      label: "Complete",
+      desc: "In the input bar, Tab inserts the highlighted command/file from the open / or @ picker.",
     },
     {
       key: "input-slash",
