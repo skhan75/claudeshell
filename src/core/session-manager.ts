@@ -78,7 +78,6 @@ export class SessionManager {
   restoreState(): void {
     const state = loadState(this.opts.statePath);
     if (state) {
-      this.counter = state.counter;
       for (const saved of state.sessions) {
         if (typeof saved.id !== "string" || typeof saved.title !== "string" || typeof saved.cwd !== "string") {
           continue; // malformed entry — never produce a zombie tab
@@ -93,7 +92,17 @@ export class SessionManager {
         });
         this.sessions.push(session);
       }
-      this.activeIndex = Math.min(state.active, Math.max(0, this.sessions.length - 1));
+      // Validate counter: must be a non-negative integer; fall back to session
+      // count so the next create() id is always beyond any restored id.
+      this.counter =
+        Number.isInteger(state.counter) && state.counter >= 0
+          ? state.counter
+          : this.sessions.length;
+      // Validate active: must be a non-negative integer within bounds; clamp
+      // to [0, sessions.length-1] so manager.active is never undefined.
+      this.activeIndex = Number.isInteger(state.active)
+        ? Math.max(0, Math.min(state.active, Math.max(0, this.sessions.length - 1)))
+        : 0;
     }
     if (this.sessions.length === 0) this.create();
     this.notify();

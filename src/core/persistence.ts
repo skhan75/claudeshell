@@ -1,10 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
+import { createHash } from "node:crypto";
 
-/** Per-project state file — cwd slug mirrors Claude Code's project naming. */
+/** Per-project state file — cwd slug mirrors Claude Code's project naming.
+ *  A short SHA-1 hash suffix makes the slug injective (avoids collisions like
+ *  '/a/b' vs '/a.b' which both map to '-a-b' without the hash). */
 export function statePathFor(cwd: string): string {
-  return join(homedir(), ".claudeshell", "state", cwd.replace(/[/.]/g, "-") + ".json");
+  const slug = cwd.replace(/[/.]/g, "-");
+  const hash = createHash("sha1").update(cwd).digest("hex").slice(0, 8);
+  return join(homedir(), ".claudeshell", "state", `${slug}-${hash}.json`);
 }
 
 export interface SavedSession {
@@ -28,12 +33,18 @@ export function loadState(path: string): SavedState | null {
     if (raw.version !== 1 || !Array.isArray(raw.sessions)) throw new Error("bad schema");
     return raw;
   } catch {
-    renameSync(path, path + ".bak");
+    // Best-effort backup — if rename fails (read-only dir, existing .bak, etc.)
+    // swallow the error so startup never crashes.
+    try { renameSync(path, path + ".bak"); } catch { /* best effort */ }
     return null;
   }
 }
 
 export function saveState(path: string, state: SavedState): void {
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(state, null, 2));
+  // Atomic write: write to a temp sibling then rename so a kill mid-write
+  // never leaves a truncated state file.
+  const tmp = path + ".tmp." + process.pid;
+  writeFileSync(tmp, JSON.stringify(state, null, 2));
+  renameSync(tmp, path);
 }
