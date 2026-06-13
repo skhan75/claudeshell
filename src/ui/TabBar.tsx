@@ -109,12 +109,15 @@ export function TabBar() {
       {hiddenLeft > 0 && (
         <Text color={theme.dim}>{`‹${hiddenLeft} `}</Text>
       )}
-      {slice.map(({ label, session, index }) => {
+      {slice.map(({ label, session, index }, i) => {
         const active = index === activeIndex;
         return (
-          <Text key={session.id} inverse={active} color={active ? theme.accent : theme.dim}>
-            {label}
-          </Text>
+          <React.Fragment key={session.id}>
+            {i > 0 && <Text color={theme.dim}>│</Text>}
+            <Text inverse={active} bold={active} color={active ? theme.accent : theme.dim}>
+              {label}
+            </Text>
+          </React.Fragment>
         );
       })}
       {hiddenRight > 0 && (

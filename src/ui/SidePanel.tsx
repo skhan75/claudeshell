@@ -2,11 +2,11 @@ import React from "react";
 import { Box, Text } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
+import { Panel, SectionHeader, Stat } from "./chrome.js";
 import { bar, fmtK, fmtUptime, CONTEXT_WINDOW } from "./format.js";
 
-function Header({ label }: { label: string }) {
-  return <Text color={theme.dim}>{label}</Text>;
-}
+const PANEL_WIDTH = 34;
+const CONTENT_WIDTH = 30; // inside the round border + paddingX:1
 
 export function SidePanel() {
   const { manager } = useAppCtx();
@@ -20,33 +20,46 @@ export function SidePanel() {
   const ctxPct = Math.min(100, Math.round((u.contextTokens / CONTEXT_WINDOW) * 100));
 
   return (
-    <Box flexDirection="column" width={30} paddingLeft={1}>
-      <Header label="CONTEXT" />
+    <Panel width={PANEL_WIDTH}>
+      <SectionHeader label="CONTEXT" width={CONTENT_WIDTH} />
       {files.length === 0 && <Text dimColor>(no files yet)</Text>}
       {files.map((f) => (
-        <Text key={f} color={theme.fg}>{f.length > 27 ? "…" + f.slice(-26) : f}</Text>
-      ))}
-      <Text> </Text>
-      <Header label="SESSION" />
-      <Text color={theme.fg}>MODEL  {meta.model ?? "—"}</Text>
-      <Text color={theme.fg}>TOKENS {fmtK(u.inputTokens)} in · {fmtK(u.outputTokens)} out</Text>
-      <Text color={theme.accent}>{bar(ctxPct, 14)} <Text color={theme.dim}>{ctxPct}%</Text></Text>
-      <Text color={theme.fg}>COST   ${u.costUsd.toFixed(2)} · {u.turns} turns</Text>
-      <Text color={theme.fg}>MODE   {s.permissionMode}</Text>
-      {meta.mcpServers.map((m) => (
-        <Text key={m.name} color={theme.fg}>
-          MCP    {m.name} <Text color={m.status === "connected" ? theme.good : theme.bad}>●</Text>
+        <Text key={f}>
+          <Text color={theme.dim}>{"› "}</Text>
+          <Text color={theme.fg}>{f.length > 27 ? "…" + f.slice(-26) : f}</Text>
         </Text>
       ))}
-      <Text> </Text>
-      <Header label="HOST" />
-      {host && (
-        <>
-          <Text color={theme.fg}>{host.hostname} · mem {host.memUsedPct}%</Text>
-          {host.branch && <Text color={theme.purple}>⎇ {host.branch}</Text>}
-          <Text dimColor>up {fmtUptime(host.uptimeSec)}</Text>
-        </>
-      )}
-    </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <SectionHeader label="SESSION" width={CONTENT_WIDTH} />
+        <Stat label="MODEL " value={meta.model ?? "—"} color={theme.fg} />
+        <Stat label="TOKENS" value={`${fmtK(u.inputTokens)} in · ${fmtK(u.outputTokens)} out`} color={theme.fg} />
+        <Text>
+          <Text color={theme.accent}>{bar(ctxPct, 14)}</Text> <Text color={theme.dim}>{ctxPct}%</Text>
+        </Text>
+        <Stat label="COST  " value={`$${u.costUsd.toFixed(2)} · ${u.turns} turns`} color={theme.fg} />
+        <Stat label="MODE  " value={s.permissionMode} color={theme.fg} />
+        {meta.mcpServers.map((m) => (
+          <Text key={m.name}>
+            <Text color={theme.dim}>{"MCP   "}</Text>{" "}
+            <Text color={theme.fg}>{m.name}</Text>{" "}
+            <Text color={m.status === "connected" ? theme.good : theme.bad}>●</Text>
+          </Text>
+        ))}
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <SectionHeader label="HOST" width={CONTENT_WIDTH} />
+        {host && (
+          <>
+            <Text color={theme.fg}>
+              {host.hostname} <Text color={theme.dim}>· mem {host.memUsedPct}%</Text>
+            </Text>
+            {host.branch && <Text color={theme.purple}>⎇ {host.branch}</Text>}
+            <Text dimColor>up {fmtUptime(host.uptimeSec)}</Text>
+          </>
+        )}
+      </Box>
+    </Panel>
   );
 }

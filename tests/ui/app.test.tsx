@@ -11,6 +11,24 @@ describe("App shell", () => {
     expect(lastFrame()).toContain("1:new session");
   });
 
+  it("renders the header status block (MODEL + STATUS + clock)", () => {
+    const { lastFrame } = renderWithCtx(<App />);
+    const frame = lastFrame()!;
+    expect(frame).toContain("MODEL");
+    expect(frame).toContain("STATUS");
+    // idle status is shown for a fresh session
+    expect(frame).toContain("idle");
+    // a HH:MM:SS clock segment
+    expect(frame).toMatch(/\d{2}:\d{2}:\d{2}/);
+  });
+
+  it("renders the footer status line (cwd + MODE + System OK)", () => {
+    const { lastFrame } = renderWithCtx(<App />);
+    const frame = lastFrame()!;
+    expect(frame).toContain("MODE");
+    expect(frame).toContain("System OK");
+  });
+
   it("toggles layout with ctrl+o", async () => {
     const ctx = makeCtx();
     const { stdin } = renderWithCtx(<App />, ctx);
@@ -92,6 +110,27 @@ describe("App shell", () => {
     // Rows threshold
     expect(13 < 14).toBe(true);   // too small
     expect(14 < 14).toBe(false);  // just right
+  });
+
+  it("esc interrupts a processing session", async () => {
+    const ctx = makeCtx();
+    const session = ctx.manager.active!;
+    // Drive into a processing turn.
+    session.status = "processing";
+    session.turnStartedAt = Date.now();
+    let interrupted = false;
+    session.interrupt = async () => {
+      interrupted = true;
+      session.status = "idle";
+    };
+    ctx.store.getState().bump();
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x1b)); // ESC
+    await tick();
+    expect(interrupted).toBe(true);
+    // Focus must NOT have changed (interrupt branch returns before focusToggle).
+    expect(ctx.store.getState().focus).toBe("input");
   });
 
   it("palette shortcut does not fire when paletteOpen=true (isActive=false)", async () => {
