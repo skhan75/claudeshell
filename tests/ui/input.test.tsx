@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import React from "react";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup as cleanupInk } from "ink-testing-library";
 import { InputBar } from "../../src/ui/InputBar.js";
 import { PillBar } from "../../src/ui/PillBar.js";
@@ -59,16 +61,48 @@ describe("InputBar", () => {
     expect(frame.indexOf("/commit")).toBeLessThan(frame.indexOf("/xcom"));
   });
 
-  it("tab on bare @ does not autocomplete blindly", async () => {
+  it("bare @ shows a live file suggestion and Tab completes to the top file", async () => {
     const ctx = makeCtx();
+    const cwd = ctx.manager.active!.cwd;
+    writeFileSync(join(cwd, "alpha.ts"), "");
     const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
     await tick();
     stdin.write("read @");
     await tick();
+    // proactive: the file row appears for a bare "@" (no Tab yet).
+    expect(lastFrame()).toContain("@ files");
+    expect(lastFrame()).toContain("alpha.ts");
     stdin.write("\t");
     await tick();
-    expect(lastFrame()).toContain("❯ read @");
-    expect(lastFrame()).not.toContain("@."); // no surprise first-file completion
+    // Tab completes the @-token to the top file suggestion.
+    expect(lastFrame()).toContain("@alpha.ts");
+  });
+
+  it("typing @ shows the file suggestions row live before any Tab", async () => {
+    const ctx = makeCtx();
+    const cwd = ctx.manager.active!.cwd;
+    writeFileSync(join(cwd, "readme.md"), "");
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("@");
+    await tick();
+    expect(lastFrame()).toContain("@ files");
+    expect(lastFrame()).toContain("readme.md");
+  });
+
+  it("typing @src filters to src files", async () => {
+    const ctx = makeCtx();
+    const cwd = ctx.manager.active!.cwd;
+    mkdirSync(join(cwd, "src"));
+    writeFileSync(join(cwd, "src", "main.ts"), "");
+    writeFileSync(join(cwd, "notes.txt"), "");
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("@src");
+    await tick();
+    const frame = lastFrame()!;
+    expect(frame).toContain("src/main.ts");
+    expect(frame).not.toContain("notes.txt");
   });
 
   it("goes inert when the session is crashed (resume key cannot pollute input)", async () => {

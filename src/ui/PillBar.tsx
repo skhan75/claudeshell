@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, useInput } from "ink";
 import { useApp, useAppCtx } from "./context.js";
-import { theme } from "./theme.js";
+import { Pill } from "./chrome.js";
 
 export function PillBar() {
   const { manager, config, store } = useAppCtx();
@@ -36,13 +36,7 @@ export function PillBar() {
   return (
     <Box>
       {config.pills.map((p, i) => (
-        <Text
-          key={p.label}
-          inverse={focused && i === sel}
-          color={focused && i === sel ? theme.accent : theme.dim}
-        >
-          {" "}{p.label}{" "}
-        </Text>
+        <Pill key={p.label} label={p.label} active={focused && i === sel} />
       ))}
     </Box>
   );
