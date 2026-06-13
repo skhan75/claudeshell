@@ -60,6 +60,41 @@ describe("TelemetryStrip", () => {
     expect(frame).toContain("$0.42");
     expect(frame).toContain("feature/mcp");
   });
+
+  // FIX 4 pinning: long model id + many MCP servers + long branch must never produce more than one line.
+  it("never wraps to more than one line with very long content", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    // Long model id, multiple MCP servers, long branch.
+    s.transcript.apply({
+      type: "system",
+      subtype: "init",
+      session_id: "x",
+      model: "claude-opus-very-long-model-name-with-extra-description-v99",
+      mcp_servers: [
+        { name: "vibedrift", status: "connected" },
+        { name: "playwright", status: "connected" },
+        { name: "google-drive", status: "connected" },
+        { name: "gmail-mcp-server", status: "connected" },
+      ],
+      slash_commands: [],
+    });
+    s.transcript.apply({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "x" }], usage: { input_tokens: 12345, output_tokens: 678 } },
+    });
+    ctx.store.getState().setHostStats({
+      hostname: "my-very-long-hostname",
+      platform: "darwin",
+      memUsedPct: 77,
+      uptimeSec: 3600,
+      branch: "feature/very-long-branch-name-that-could-overflow-strip",
+    });
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<TelemetryStrip />, ctx).lastFrame()!;
+    // The rendered output must be a single line (no newline characters).
+    expect(frame).not.toContain("\n");
+  });
 });
 
 describe("format edge cases", () => {

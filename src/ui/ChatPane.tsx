@@ -3,11 +3,22 @@ import { Box, Text, useInput, useStdout } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
 import type { TranscriptBlock } from "../core/types.js";
+import type { Layout } from "../store.js";
 
 export interface Line {
   text: string;
   color?: string;
   dim?: boolean;
+}
+
+/**
+ * Returns the number of terminal rows consumed by chrome around the ChatPane.
+ * zen layout adds one extra row (TelemetryStrip sits below the tab bar in zen
+ * but is counted separately from the input area). This is exported so tests
+ * can pin the value without relying on terminal row mocking.
+ */
+export function chromeRows(layout: Layout): number {
+  return layout === "zen" ? 9 : 8;
 }
 
 export function wrapText(text: string, width: number): string[] {
@@ -58,15 +69,20 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
 
   const cols = stdout?.columns ?? 80;
   const width = Math.max(20, layout === "sidebar" ? cols - 32 : cols - 2);
-  // rows - 8 ≈ chrome: tab bar + input + pills + paddings; suggestion row makes it 9 (bottom row may clip on very short terminals — acceptable v1)
-  const height = heightProp ?? Math.max(6, (stdout?.rows ?? 24) - 8);
+  // rows - chromeRows: zen has one extra chrome row (TelemetryStrip sits above the input
+  // in that layout); chromeRows() is exported as a pure helper for testability.
+  const height = heightProp ?? Math.max(6, (stdout?.rows ?? 24) - chromeRows(layout));
 
   const [offset, setOffset] = useState(0); // lines scrolled up from bottom
   const [search, setSearch] = useState({ active: false, query: "" });
+  // matchIdx is the index into the matches[] array (not the line index) so that
+  // n/N cycle through ALL matches instead of re-deriving from viewport top.
+  const [matchIdx, setMatchIdx] = useState(0);
 
   useEffect(() => {
     setOffset(0);
     setSearch({ active: false, query: "" });
+    setMatchIdx(0);
   }, [session?.id]);
 
   // PERF(v1.1): rebuilt on every render; during streaming this re-wraps the whole
@@ -83,25 +99,26 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
       .map((l, i) => (l.text.toLowerCase().includes(q) ? i : -1))
       .filter((i) => i >= 0);
     if (matches.length === 0) return;
-    const cur = Math.max(0, lines.length - height - offset);
-    const next =
-      dir === 1
-        ? matches.find((i) => i > cur) ?? matches[0]
-        : [...matches].reverse().find((i) => i < cur) ?? matches[matches.length - 1];
-    setOffset(Math.max(0, Math.min(maxOffset, lines.length - height - next)));
+    // Advance or retreat the selected match index with modulo wrap so that every
+    // press of n/N moves to a DIFFERENT match, regardless of scroll position.
+    const nextIdx = ((matchIdx + dir) % matches.length + matches.length) % matches.length;
+    setMatchIdx(nextIdx);
+    const targetLine = matches[nextIdx];
+    setOffset(Math.max(0, Math.min(maxOffset, lines.length - height - targetLine)));
   };
 
   useInput(
     (input, key) => {
       if (search.active) {
-        if (key.escape) setSearch({ active: false, query: "" });
+        if (key.escape) { setSearch({ active: false, query: "" }); setMatchIdx(0); }
         else if (key.return) setSearch((s) => ({ ...s, active: false }));
-        else if (key.backspace || key.delete) setSearch((s) => ({ ...s, query: s.query.slice(0, -1) }));
-        else if (input && !key.ctrl && !key.meta) setSearch((s) => ({ ...s, query: s.query + input }));
+        else if (key.backspace || key.delete) { setSearch((s) => ({ ...s, query: s.query.slice(0, -1) })); setMatchIdx(0); }
+        else if (input && !key.ctrl && !key.meta) { setSearch((s) => ({ ...s, query: s.query + input })); setMatchIdx(0); }
         return;
       }
       if (key.escape && search.query !== "") {
         setSearch({ active: false, query: "" });
+        setMatchIdx(0);
         return;
       }
       if (input === "j") setOffset((o) => Math.max(0, o - 1));

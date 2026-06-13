@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useStdout } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
 
@@ -11,22 +11,115 @@ const STATUS_GLYPH: Record<string, string> = {
   crashed: " ✖",
 };
 
+/** Measure the display width of a single tab label string (without ANSI). */
+function tabWidth(label: string): number {
+  return label.length;
+}
+
+/**
+ * Given the full list of sessions and the active index, compute a windowed
+ * slice that fits within `availableWidth` columns.  Always includes the active
+ * tab.  Returns the slice and left/right hidden counts for the overflow
+ * indicators.
+ */
+export function computeTabWindow(
+  tabs: Array<{ label: string }>,
+  activeIndex: number,
+  availableWidth: number,
+): { start: number; end: number; hiddenLeft: number; hiddenRight: number } {
+  if (tabs.length === 0) return { start: 0, end: 0, hiddenLeft: 0, hiddenRight: 0 };
+
+  // Try to fit as many tabs as possible around activeIndex.
+  // Reserve space for overflow indicators (worst case "‹9 " + " 9›" = 6 chars each side).
+  let start = activeIndex;
+  let end = activeIndex + 1; // exclusive
+  let used = tabWidth(tabs[activeIndex].label);
+
+  // Expand outward while there is room.
+  let leftDone = start === 0;
+  let rightDone = end === tabs.length;
+
+  while (!leftDone || !rightDone) {
+    if (!leftDone) {
+      const w = tabWidth(tabs[start - 1].label);
+      // Reserve 4 chars if there will still be hidden tabs on the left after adding this
+      const reserveLeft = start - 1 > 0 ? 4 : 0;
+      const reserveRight = end < tabs.length ? 4 : 0;
+      if (used + w + reserveLeft + reserveRight <= availableWidth) {
+        start--;
+        used += w;
+        if (start === 0) leftDone = true;
+      } else {
+        leftDone = true;
+      }
+    }
+    if (!rightDone) {
+      const w = tabWidth(tabs[end].label);
+      const reserveLeft = start > 0 ? 4 : 0;
+      const reserveRight = end + 1 < tabs.length ? 4 : 0;
+      if (used + w + reserveLeft + reserveRight <= availableWidth) {
+        end++;
+        used += w;
+        if (end === tabs.length) rightDone = true;
+      } else {
+        rightDone = true;
+      }
+    }
+  }
+
+  return {
+    start,
+    end,
+    hiddenLeft: start,
+    hiddenRight: tabs.length - end,
+  };
+}
+
 export function TabBar() {
   const { manager } = useAppCtx();
   useApp((s) => s.version);
+  const { stdout } = useStdout();
+  const termWidth = stdout?.columns ?? 80;
+
+  // Brand prefix: "▌CLAUDESHELL " = 13 chars
+  const brandWidth = 13;
+  const availableWidth = Math.max(10, termWidth - brandWidth);
+
+  const tabs = manager.sessions.map((s, i) => ({
+    label: ` ${i + 1}:${s.title}${STATUS_GLYPH[s.status] ?? ""} `,
+    session: s,
+    index: i,
+  }));
+
+  const activeIndex = manager.activeIndex;
+
+  const { start, end, hiddenLeft, hiddenRight } = computeTabWindow(
+    tabs,
+    Math.min(activeIndex, Math.max(0, tabs.length - 1)),
+    availableWidth,
+  );
+
+  const slice = tabs.slice(start, end);
+
   return (
     <Box>
       <Text color={theme.accent} bold>
         ▌CLAUDESHELL{" "}
       </Text>
-      {manager.sessions.map((s, i) => {
-        const active = i === manager.activeIndex;
+      {hiddenLeft > 0 && (
+        <Text color={theme.dim}>{`‹${hiddenLeft} `}</Text>
+      )}
+      {slice.map(({ label, session, index }) => {
+        const active = index === activeIndex;
         return (
-          <Text key={s.id} inverse={active} color={active ? theme.accent : theme.dim}>
-            {` ${i + 1}:${s.title}${STATUS_GLYPH[s.status] ?? ""} `}
+          <Text key={session.id} inverse={active} color={active ? theme.accent : theme.dim}>
+            {label}
           </Text>
         );
       })}
+      {hiddenRight > 0 && (
+        <Text color={theme.dim}>{` ${hiddenRight}›`}</Text>
+      )}
     </Box>
   );
 }
