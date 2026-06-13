@@ -14,7 +14,7 @@ import { BuffersOverlay } from "./BuffersOverlay.js";
 import { TerminalPane } from "./TerminalPane.js";
 import { ActivityIndicator } from "./ActivityIndicator.js";
 import { PermissionDialog, QuestionDialog } from "./dialogs.js";
-import { Rule, Stat, PILL_BG } from "./chrome.js";
+import { Rule, Stat, PILL_BG, SIDEBAR_WIDTH } from "./chrome.js";
 import { theme } from "./theme.js";
 import type { SessionStatus } from "../core/types.js";
 import { createRequire } from "node:module";
@@ -181,19 +181,31 @@ export function App() {
   const statusFg = terminalTab ? (terminalTab.status === "running" ? theme.good : theme.dim) : statusColor(status);
   const cwdLabel = activeTab ? shortCwd(activeTab.cwd) : "—";
 
-  // Pin the layout to the terminal height: header (status row + rule, +1 for zen
-  // telemetry) and a 1-row footer are reserved, and the main row is capped with
-  // overflow:hidden so the bordered sidebar can never push the footer off-screen.
-  // The chat area gets an explicit height (the rest goes to the input/pills block).
+  // Pin the layout to the terminal height. The whole app is wrapped in a rounded
+  // frame (the violet border), which eats 1 row/col on every side — FRAME=2. Inside
+  // that: header (status row + rule, +1 for zen telemetry) and a 1-row footer are
+  // reserved, and the main row is capped with overflow:hidden so the bordered
+  // sidebar can never push the footer off-screen. The chat area gets an explicit
+  // height (the rest goes to the input/pills block) and a frame-aware width.
   const termRows = stdout?.rows ?? 24;
+  const FRAME = 2;
+  const innerWidth = Math.max(1, termWidth - FRAME);
   const headerRows = 2 + (layout === "zen" ? 1 : 0);
   const FOOTER_ROWS = 1;
   const INPUT_AREA_ROWS = 7; // bordered input box + pills + slack for activity/suggestions
-  const mainHeight = Math.max(4, termRows - headerRows - FOOTER_ROWS);
+  const mainHeight = Math.max(4, termRows - FRAME - headerRows - FOOTER_ROWS);
   const chatHeight = Math.max(3, mainHeight - INPUT_AREA_ROWS);
+  const chatWidth = Math.max(20, layout === "sidebar" ? innerWidth - SIDEBAR_WIDTH : innerWidth - 2);
 
   return (
-    <Box flexDirection="column">
+    <Box
+      borderStyle="round"
+      borderColor={theme.purple}
+      flexDirection="column"
+      width={termWidth}
+      height={termRows}
+      overflow="hidden"
+    >
       {/* Header: brand + tabs on the left, holistic session status on the right */}
       <Box>
         <Box flexGrow={1}>
@@ -207,7 +219,7 @@ export function App() {
           <Text color={theme.fg}>{clock}</Text>
         </Box>
       </Box>
-      <Rule width={termWidth} />
+      <Rule width={innerWidth} />
       {layout === "zen" && <TelemetryStrip />}
       <Box height={mainHeight} overflow="hidden">
         {/* Overlays/palette are Claude-context but take precedence over everything
@@ -234,7 +246,7 @@ export function App() {
           <TerminalPane height={mainHeight} onQuit={inkExit} />
         ) : (
           <Box flexDirection="column" flexGrow={1}>
-            <ChatPane height={chatHeight} />
+            <ChatPane height={chatHeight} width={chatWidth} />
             {pending ? (
               pending.toolName === "AskUserQuestion" ? (
                 <QuestionDialog key={pending.id} request={pending} />
@@ -244,7 +256,7 @@ export function App() {
             ) : (
               <>
                 {session?.status === "processing" && <ActivityIndicator />}
-                <InputBar />
+                <InputBar width={chatWidth} />
               </>
             )}
           </Box>
@@ -263,9 +275,9 @@ export function App() {
           : ` · MODE ${mode} · ^K cmds · ^B bufs · ^G help · ^Q quit`;
         const badge = `✓ System OK v${VERSION}`;
         const leftLen = idxChip.length + cwdPad.length + branchStr.length + hints.length;
-        const padLen = Math.max(1, termWidth - leftLen - badge.length);
+        const padLen = Math.max(1, innerWidth - leftLen - badge.length);
         return (
-          <Box width={termWidth} overflow="hidden">
+          <Box width={innerWidth} overflow="hidden">
             <Text wrap="truncate">
               <Text color={theme.accent}>{idxChip}</Text>
               <Text backgroundColor={PILL_BG} color={theme.fg}>{cwdPad}</Text>

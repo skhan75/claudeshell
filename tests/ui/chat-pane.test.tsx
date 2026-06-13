@@ -17,13 +17,13 @@ function seed(ctx: ReturnType<typeof makeCtx>) {
 }
 
 describe("ChatPane", () => {
-  it("renders the prompt with a ❯ marker and the answer as plain markdown (no banners)", () => {
+  it("renders the prompt with a ▸ marker and the answer as plain markdown (no banners)", () => {
     const ctx = makeCtx();
     seed(ctx);
     const { lastFrame } = renderWithCtx(<ChatPane height={10} />, ctx);
     const frame = lastFrame()!;
-    // Clean & minimal: a "❯" prompt marker, no OPERATOR/CLAUDE/AI Dialogue chrome.
-    expect(frame).toContain("❯");
+    // Clean & minimal: a "▸" prompt marker, no OPERATOR/CLAUDE/AI Dialogue chrome.
+    expect(frame).toContain("▸");
     expect(frame).toContain("refactor the JWT validation");
     expect(frame).toContain("I see the issue");
     expect(frame).not.toContain("OPERATOR");
@@ -224,5 +224,93 @@ describe("ChatPane", () => {
     expect(frame).toContain("✻");
     expect(frame).toContain("checking the issuer");
     expect(frame).toContain("Here is the fix.");
+  });
+});
+
+describe("ChatPane — scrolling", () => {
+  // The headline fix: PgUp/PgDn scroll the transcript WITHOUT a mode switch, so you
+  // can flick through the backlog while still in the (default) input focus.
+  it("PgUp/PgDn scroll a long transcript from the default input focus", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    for (let i = 0; i < 30; i++) s.transcript.addInfo(`line-${i}`);
+    ctx.store.getState().bump();
+    // focus is "input" by default — no setFocus("scroll") here.
+    const { lastFrame, stdin } = renderWithCtx(<ChatPane height={5} />, ctx);
+    expect(lastFrame()).toContain("line-29"); // starts pinned to the bottom
+    await tick();
+    stdin.write("\x1b[5~"); // PgUp — real CSI sequence
+    await tick();
+    expect(lastFrame()).toContain("line-21"); // page (height-1=4) scrolled up
+    expect(lastFrame()).not.toContain("line-29");
+    stdin.write("\x1b[6~"); // PgDn back to the latest
+    await tick();
+    expect(lastFrame()).toContain("line-29");
+  });
+
+  it("draws a right-edge scrollbar only when the transcript overflows", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    for (let i = 0; i < 30; i++) s.transcript.addInfo(`line-${i}`);
+    ctx.store.getState().bump();
+    const { lastFrame } = renderWithCtx(<ChatPane height={5} />, ctx);
+    // Overflow → the scrollbar thumb (█) and track (│) are present.
+    expect(lastFrame()).toContain("█");
+
+    const ctx2 = makeCtx();
+    ctx2.manager.active!.transcript.addInfo("only one line");
+    ctx2.store.getState().bump();
+    const { lastFrame: short } = renderWithCtx(<ChatPane height={20} />, ctx2);
+    expect(short()).not.toContain("█"); // fits → no scrollbar
+  });
+
+  it("shows a 'more below' status line once you've scrolled up", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    for (let i = 0; i < 30; i++) s.transcript.addInfo(`line-${i}`);
+    ctx.store.getState().bump();
+    const { lastFrame, stdin } = renderWithCtx(<ChatPane height={5} />, ctx);
+    await tick();
+    expect(lastFrame()).not.toMatch(/more line/); // at bottom → no status line
+    stdin.write("\x1b[5~"); // PgUp
+    await tick();
+    expect(lastFrame()).toMatch(/more line.*below/);
+  });
+
+  it("arrow keys scroll line-by-line in scroll mode", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    for (let i = 0; i < 30; i++) s.transcript.addInfo(`line-${i}`);
+    ctx.store.getState().bump();
+    ctx.store.getState().setFocus("scroll");
+    const { lastFrame, stdin } = renderWithCtx(<ChatPane height={5} />, ctx);
+    await tick();
+    stdin.write("\x1b[A"); // up arrow → one line up
+    await tick();
+    stdin.write("\x1b[A");
+    await tick();
+    stdin.write("\x1b[A");
+    await tick();
+    expect(lastFrame()).toContain("line-22"); // scrolled up three lines
+    expect(lastFrame()).not.toContain("line-29");
+  });
+
+  it("snaps back to the latest when a new prompt is sent while scrolled up", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    for (let i = 0; i < 30; i++) s.transcript.addInfo(`line-${i}`);
+    ctx.store.getState().bump();
+    ctx.store.getState().setFocus("scroll");
+    const { lastFrame, stdin } = renderWithCtx(<ChatPane height={5} />, ctx);
+    await tick();
+    stdin.write("g"); // jump to the very top
+    await tick();
+    expect(lastFrame()).toContain("line-0");
+    // A new user prompt arrives — the view should snap to the bottom to show it.
+    s.transcript.addUser("show me the latest");
+    ctx.store.getState().bump();
+    await tick();
+    expect(lastFrame()).toContain("show me the latest");
+    expect(lastFrame()).not.toContain("line-0");
   });
 });

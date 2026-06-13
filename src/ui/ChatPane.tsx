@@ -4,6 +4,7 @@ import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
 import { renderMarkdown } from "./markdown.js";
 import { wrapSpans, lineText, type Span, type Line } from "./wrap-spans.js";
+import { SIDEBAR_WIDTH } from "./chrome.js";
 import type { TranscriptBlock } from "../core/types.js";
 import type { Layout } from "../store.js";
 
@@ -50,7 +51,7 @@ export function blockLines(b: TranscriptBlock, width: number): Line[] {
       const wrapped = wrapSpans([{ text: b.text, color: theme.fg }], Math.max(1, width - 2));
       return wrapped.map((l, i) => ({
         spans: i === 0
-          ? [{ text: "❯ ", color: theme.accent, bold: true }, ...l.spans]
+          ? [{ text: "▸ ", color: theme.accent, bold: true }, ...l.spans]
           : [{ text: "  " }, ...l.spans],
       }));
     }
@@ -105,7 +106,7 @@ function cachedBlockLines(b: TranscriptBlock, width: number): Line[] {
   return lines;
 }
 
-export function ChatPane({ height: heightProp }: { height?: number }) {
+export function ChatPane({ height: heightProp, width: widthProp }: { height?: number; width?: number }) {
   const { manager } = useAppCtx();
   useApp((s) => s.version);
   const focus = useApp((s) => s.focus);
@@ -115,9 +116,10 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
   const session = manager.active;
 
   const cols = stdout?.columns ?? 80;
-  // Sidebar occupies 34 cols; subtract the full panel width so rule+body never
-  // overflows the chat column. Zen keeps a 1-col breathing margin each side.
-  const width = Math.max(20, layout === "sidebar" ? cols - 34 : cols - 2);
+  // The text-area width. App passes an explicit (frame-aware) width; the fallback
+  // mirrors it for tests/standalone: sidebar occupies SIDEBAR_WIDTH cols, zen keeps
+  // a 1-col breathing margin each side.
+  const width = widthProp ?? Math.max(20, layout === "sidebar" ? cols - SIDEBAR_WIDTH : cols - 2);
   const height = heightProp ?? Math.max(6, (stdout?.rows ?? 24) - chromeRows(layout));
 
   const [offset, setOffset] = useState(0); // lines scrolled up from bottom
@@ -135,6 +137,9 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
   // PERF(v1.1): rebuilt on every render; during streaming this re-renders the whole
   // transcript per delta. Fine for short sessions — memoize prefix rendering (all
   // blocks except the streaming tail) before long-session support.
+  // Reserve one column on the right for the scroll gutter so wrapping is stable
+  // whether or not the transcript currently overflows (no reflow at the boundary).
+  const contentWidth = Math.max(20, width - 1);
   const lines: Line[] = [];
   const blocks = session?.transcript.blocks ?? [];
   for (let i = 0; i < blocks.length; i++) {
@@ -143,9 +148,21 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
     if (i > 0 && (b.kind === "user" || b.kind === "assistant" || b.kind === "thinking")) {
       lines.push({ spans: [] });
     }
-    for (const l of cachedBlockLines(b, width)) lines.push(l);
+    for (const l of cachedBlockLines(b, contentWidth)) lines.push(l);
   }
   const maxOffset = Math.max(0, lines.length - height);
+  const effOffset = Math.min(offset, maxOffset); // clamp a stale offset after a resize
+  const overflow = maxOffset > 0;
+
+  // Snap back to the latest whenever the user sends a new prompt, so the reply is
+  // visible even if they had scrolled up to read earlier history while composing.
+  const userCount = blocks.reduce((n, b) => (b.kind === "user" ? n + 1 : n), 0);
+  useEffect(() => {
+    setOffset(0);
+  }, [userCount]);
+
+  const page = Math.max(1, height - 1); // PgUp/PgDn step (one line of overlap)
+  const half = Math.max(1, Math.floor(height / 2)); // Ctrl+D/Ctrl+U step
 
   const jump = (dir: 1 | -1) => {
     const q = search.query.toLowerCase();
@@ -164,6 +181,18 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
 
   useInput(
     (input, key) => {
+      // Page keys scroll the transcript from ANY focus — you can flick through the
+      // backlog while still composing in the input bar (no mode switch needed).
+      if (key.pageUp) {
+        setOffset((o) => Math.min(maxOffset, o + page));
+        return;
+      }
+      if (key.pageDown) {
+        setOffset((o) => Math.max(0, o - page));
+        return;
+      }
+      // The vim-style keys below only apply once focus is in the transcript (Esc).
+      if (focus !== "scroll") return;
       if (search.active) {
         if (key.escape) { setSearch({ active: false, query: "" }); setMatchIdx(0); }
         else if (key.return) setSearch((s) => ({ ...s, active: false }));
@@ -176,49 +205,83 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
         setMatchIdx(0);
         return;
       }
-      if (input === "j") setOffset((o) => Math.max(0, o - 1));
-      else if (input === "k") setOffset((o) => Math.min(maxOffset, o + 1));
+      if (input === "j" || key.downArrow) setOffset((o) => Math.max(0, o - 1));
+      else if (input === "k" || key.upArrow) setOffset((o) => Math.min(maxOffset, o + 1));
       else if (input === "G") setOffset(0);
       else if (input === "g") setOffset(maxOffset);
-      else if (key.ctrl && input === "d") setOffset((o) => Math.max(0, o - Math.floor(height / 2)));
-      else if (key.ctrl && input === "u") setOffset((o) => Math.min(maxOffset, o + Math.floor(height / 2)));
+      else if (key.ctrl && input === "d") setOffset((o) => Math.max(0, o - half));
+      else if (key.ctrl && input === "u") setOffset((o) => Math.min(maxOffset, o + half));
       else if (input === "/") setSearch({ active: true, query: "" });
       else if (input === "n") jump(1);
       else if (input === "N") jump(-1);
     },
-    { isActive: focus === "scroll" && !paletteOpen && !manager.active?.pendingPermission }
+    { isActive: !paletteOpen && !manager.active?.pendingPermission }
   );
 
-  const start = Math.max(0, lines.length - height - offset);
+  const start = Math.max(0, lines.length - height - effOffset);
   const visible = lines.slice(start, start + height);
   const q = search.query.toLowerCase();
+  const searchRow = search.active || search.query !== "";
+  const scrolledRow = overflow && effOffset > 0;
+  const extraRows = (searchRow ? 1 : 0) + (scrolledRow ? 1 : 0);
+
+  // Scrollbar thumb geometry (drawn only when the transcript overflows). The thumb
+  // length is proportional to how much of the transcript is on screen; its position
+  // tracks how far from the top the viewport currently sits.
+  const thumbSize = overflow
+    ? Math.min(height, Math.max(1, Math.round((height * height) / lines.length)))
+    : 0;
+  const thumbTrack = Math.max(0, height - thumbSize);
+  const posFrac = maxOffset > 0 ? start / maxOffset : 0; // 0 = top … 1 = bottom
+  const thumbStart = Math.min(thumbTrack, Math.round(posFrac * thumbTrack));
 
   return (
-    <Box flexDirection="column" height={height + (search.active || search.query ? 1 : 0)}>
-      {visible.map((l, i) => {
-        const hit = q !== "" && lineText(l).toLowerCase().includes(q);
-        const spans = l.spans.length ? l.spans : [{ text: " " } as Span];
-        return (
-          <Box key={start + i}>
-            {spans.map((s, j) => (
-              <Text
-                key={j}
-                color={s.color}
-                backgroundColor={s.bg}
-                dimColor={s.dim}
-                bold={s.bold}
-                italic={s.italic}
-                underline={s.underline}
-                strikethrough={s.strikethrough}
-                inverse={hit}
-              >
-                {s.text || " "}
-              </Text>
-            ))}
+    <Box flexDirection="column" width={width} height={height + extraRows}>
+      <Box flexDirection="row">
+        <Box flexDirection="column" width={contentWidth}>
+          {visible.map((l, i) => {
+            const hit = q !== "" && lineText(l).toLowerCase().includes(q);
+            const spans = l.spans.length ? l.spans : [{ text: " " } as Span];
+            return (
+              <Box key={start + i}>
+                {spans.map((s, j) => (
+                  <Text
+                    key={j}
+                    color={s.color}
+                    backgroundColor={s.bg}
+                    dimColor={s.dim}
+                    bold={s.bold}
+                    italic={s.italic}
+                    underline={s.underline}
+                    strikethrough={s.strikethrough}
+                    inverse={hit}
+                  >
+                    {s.text || " "}
+                  </Text>
+                ))}
+              </Box>
+            );
+          })}
+        </Box>
+        {overflow && (
+          <Box flexDirection="column" width={1}>
+            {Array.from({ length: visible.length }, (_, r) => {
+              const onThumb = r >= thumbStart && r < thumbStart + thumbSize;
+              return (
+                <Text key={r} color={onThumb ? theme.accent : theme.dim}>
+                  {onThumb ? "█" : "│"}
+                </Text>
+              );
+            })}
           </Box>
-        );
-      })}
-      {(search.active || search.query !== "") && (
+        )}
+      </Box>
+      {scrolledRow && (
+        <Text color={theme.accent}>
+          ↓ {effOffset} more line{effOffset === 1 ? "" : "s"} below · PgDn / G to latest
+        </Text>
+      )}
+      {searchRow && (
         <Text color={theme.accent}>/{search.query}{search.active ? "▋" : `  (n/N to jump)`}</Text>
       )}
     </Box>

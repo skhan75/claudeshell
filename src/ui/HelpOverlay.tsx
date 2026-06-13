@@ -120,11 +120,18 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
     },
     // Chat / scroll
     {
+      key: "page-scroll",
+      group: "Chat / scroll",
+      binding: "PgUp / PgDn",
+      label: "Scroll the conversation (any time)",
+      desc: "Page up/down through the transcript at any time — even while composing. No mode switch needed; a scrollbar appears on the right whenever there's more to see.",
+    },
+    {
       key: "focus-chat",
       group: "Chat / scroll",
       binding: chord(k.focusToggle),
       label: "Focus chat (scroll mode)",
-      desc: "Press Esc to move focus from the input into the conversation so you can scroll it.",
+      desc: "Press Esc to move focus from the input into the conversation for fine-grained vim-style scrolling (j/k, arrows, g/G, search).",
     },
     {
       key: "focus-input",

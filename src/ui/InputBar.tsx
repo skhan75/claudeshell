@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, Text, useInput, useStdout } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
-import { Panel } from "./chrome.js";
+import { Keycap, FilledLine, SIDEBAR_WIDTH, INPUT_BORDER, INPUT_BORDER_FOCUS, INPUT_BG } from "./chrome.js";
 import { fuzzyFilter } from "../core/fuzzy.js";
 import { listProjectFilesCached } from "../core/files.js";
 
-export function InputBar() {
+export function InputBar({ width: widthProp }: { width?: number } = {}) {
   const { manager, config } = useAppCtx();
   useApp((s) => s.version);
   const focus = useApp((s) => s.focus);
   const paletteOpen = useApp((s) => s.paletteOpen);
+  const { stdout } = useStdout();
   const [text, setText] = useState("");
   // Selection index into the currently-shown suggestion list (whichever picker
   // is active). Reset to 0 whenever the query changes so it never dangles past
@@ -172,16 +173,32 @@ export function InputBar() {
 
   const footerModel = session?.transcript.meta.model ?? config.models[0] ?? "—";
 
+  // Composer box geometry. App passes a frame-aware width; the fallback mirrors it
+  // for tests/standalone. The interior is filled (INPUT_BG) by padding a Text line
+  // to the content width — Ink can only paint a background on <Text>, not <Box>.
+  const cols = stdout?.columns ?? 80;
+  const boxWidth = widthProp ?? Math.max(24, cols - SIDEBAR_WIDTH - 2);
+  const inner = Math.max(8, boxWidth - 2); // cells inside the round border
+  const PLACEHOLDER = "type a message…";
+  // Single-line input: when the text outgrows the line, show its tail (like a real
+  // input field) so the caret stays visible instead of wrapping the box taller.
+  const maxText = Math.max(1, inner - 4); // " ▸ " prefix + caret
+  const shownText = text.length > maxText ? text.slice(text.length - maxText) : text;
+  const visibleLen =
+    1 /* lead space */ + 2 /* "▸ " */ + shownText.length +
+    (focused ? 1 : 0) + (text === "" ? PLACEHOLDER.length : 0);
+
   return (
     <Box flexDirection="column">
-      <Panel accent={focused}>
-        <Box>
-          <Text color={theme.accent}>❯ </Text>
-          <Text color={theme.fg}>{text}</Text>
+      <Box borderStyle="round" borderColor={focused ? INPUT_BORDER_FOCUS : INPUT_BORDER} width={boxWidth}>
+        <FilledLine bg={INPUT_BG} trail={inner - visibleLen}>
+          <Text> </Text>
+          <Text color={theme.accent} bold>▸ </Text>
+          <Text color={theme.fg}>{shownText}</Text>
           {focused && <Text color={theme.accent}>▋</Text>}
-          {text === "" && <Text dimColor>type a message…</Text>}
-        </Box>
-      </Panel>
+          {text === "" && <Text color={theme.dim}>{PLACEHOLDER}</Text>}
+        </FilledLine>
+      </Box>
       {picker === "slash" && (
         <Box flexDirection="column" paddingX={1}>
           {suggestions.map((s, i) => (
@@ -204,7 +221,15 @@ export function InputBar() {
         </Box>
       )}
       <Box justifyContent="space-between" paddingX={1}>
-        <Text dimColor>↑↓ history · Tab autocomplete · / cmds · @ paths</Text>
+        <Box>
+          <Keycap label="↑" />
+          <Text> </Text>
+          <Keycap label="↓" />
+          <Text color={theme.dim}> history</Text>
+          <Text>   </Text>
+          <Keycap label="Tab" />
+          <Text color={theme.dim}> autocomplete</Text>
+        </Box>
         <Text color={theme.dim}>
           <Text color={theme.good}>● </Text>Model: <Text color={theme.accent}>{footerModel}</Text>
         </Text>

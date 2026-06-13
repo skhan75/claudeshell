@@ -18,9 +18,14 @@ describe("InputBar", () => {
     expect(lastFrame()).toContain(ctx.config.models[0]);
     expect(lastFrame()).toContain("history");
     expect(lastFrame()).toContain("autocomplete");
-    // The clean prompt box has no PROMPT/MODE labels.
+    // Hints render as keycap chips (↑ ↓ Tab) like the reference composer.
+    expect(lastFrame()).toContain("↑");
+    expect(lastFrame()).toContain("↓");
+    expect(lastFrame()).toContain("Tab");
+    // The clean prompt box has no PROMPT/MODE labels and drops the noisier hints.
     expect(lastFrame()).not.toContain("PROMPT");
     expect(lastFrame()).not.toContain("MODE:");
+    expect(lastFrame()).not.toContain("/ cmds");
     // Once the SDK init reports the effective model, the footer reflects it.
     ctx.manager.active!.transcript.apply({ type: "system", subtype: "init", model: "claude-sonnet-4-6" });
     ctx.store.getState().bump();
@@ -78,7 +83,7 @@ describe("InputBar", () => {
     stdin.write("\r"); // Enter inserts the highlighted command, does NOT send
     await tick();
     expect(ctx.manager.active!.transcript.blocks).toHaveLength(0);
-    expect(lastFrame()).toContain("❯ " + second);
+    expect(lastFrame()).toContain("▸ " + second);
   });
 
   it("autocompletes a real slash command with tab", async () => {
@@ -95,7 +100,7 @@ describe("InputBar", () => {
     expect(lastFrame()).toContain("/commit");
     stdin.write("\t");
     await tick();
-    expect(lastFrame()).toContain("❯ /commit");
+    expect(lastFrame()).toContain("▸ /commit");
   });
 
   it("ranks slash prefix matches first (slash excluded from scoring)", async () => {
@@ -166,7 +171,7 @@ describe("InputBar", () => {
     await tick();
     stdin.write("r");
     await tick();
-    expect(lastFrame()).not.toContain("❯ r");
+    expect(lastFrame()).not.toContain("▸ r");
   });
 
   it("Enter with the @ picker open INSERTS the highlight and does NOT send", async () => {
@@ -275,7 +280,7 @@ describe("InputBar", () => {
     stdin.write("\r"); // Enter inserts, does NOT send
     await tick();
     expect(ctx.manager.active!.transcript.blocks).toHaveLength(0);
-    expect(lastFrame()).toContain("❯ " + second);
+    expect(lastFrame()).toContain("▸ " + second);
   });
 
   it("Enter still sends when the input is plain text (no @/ token)", async () => {

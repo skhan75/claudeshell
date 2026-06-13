@@ -13,11 +13,25 @@ import { theme } from "./theme.js";
 export const PANEL_BORDER = "round" as const;
 export const PILL_BG = "#1e2738";
 export const INK_BG = "#0b0e14";
+/** Width of the right-hand SidePanel column. Centralized so the chat width, the
+ *  outer app frame, and the panel itself all agree on one number. */
+export const SIDEBAR_WIDTH = 34;
+/** Raised-key chip fill for keyboard-hint keycaps (a touch lighter than the app bg). */
+export const KEYCAP_BG = "#262e3f";
+/** Neutral-gray composer borders — a cool, calm "active"/"idle" pair (no blue tint),
+ *  matching the reference prompt box. */
+export const INPUT_BORDER_FOCUS = "#6b7280";
+export const INPUT_BORDER = "#3a3f4a";
+/** A faint raised fill for the composer interior (just above the app bg #0b0e14). */
+export const INPUT_BG = "#141a26";
 
-/** A boxed panel with a round border. Pass `accent` to highlight (focused) state. */
+/** A boxed panel with a round border. Pass `accent` to highlight (focused) state, or
+ *  `borderColor` to override the border tint. (Ink's Box has no background-color, so
+ *  interior fills are done by callers via FilledLine padded to the content width.) */
 export function Panel({
   children,
   accent = false,
+  borderColor,
   flexGrow,
   width,
   height,
@@ -25,6 +39,7 @@ export function Panel({
 }: {
   children: React.ReactNode;
   accent?: boolean;
+  borderColor?: string;
   flexGrow?: number;
   width?: number;
   height?: number;
@@ -33,7 +48,7 @@ export function Panel({
   return (
     <Box
       borderStyle={PANEL_BORDER}
-      borderColor={accent ? theme.accent : theme.dim}
+      borderColor={borderColor ?? (accent ? theme.accent : theme.dim)}
       flexDirection={flexDirection}
       flexGrow={flexGrow}
       width={width}
@@ -42,6 +57,39 @@ export function Panel({
     >
       {children}
     </Box>
+  );
+}
+
+/** A keyboard keycap chip — a glyph on a subtly-raised fill, like a physical key.
+ *  Used in hint footers (e.g. `↑` `↓` `Tab`) to make affordances pop. */
+export function Keycap({ label }: { label: string }) {
+  return (
+    <Text backgroundColor={KEYCAP_BG} color={theme.fg}>
+      {` ${label} `}
+    </Text>
+  );
+}
+
+/**
+ * One row of a background-filled region. Ink only paints a background on a <Text>
+ * (its <Box> has no backgroundColor), so a filled "card" is built by laying content
+ * over a common backgroundColor and padding the remainder with `trail` spaces to
+ * reach the target width. Nested <Text> keep their own fg color but inherit this bg.
+ */
+export function FilledLine({
+  bg,
+  trail,
+  children,
+}: {
+  bg: string;
+  trail: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <Text backgroundColor={bg} wrap="truncate">
+      {children}
+      {" ".repeat(Math.max(0, trail))}
+    </Text>
   );
 }
 
