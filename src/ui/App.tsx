@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Box, Text, useInput, useStdout } from "ink";
+import { Box, Text, useInput, useStdout, useApp as useInkApp } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { matchKey } from "./keys.js";
 import { TabBar } from "./TabBar.js";
@@ -9,6 +9,8 @@ import { TelemetryStrip } from "./TelemetryStrip.js";
 import { InputBar } from "./InputBar.js";
 import { PillBar } from "./PillBar.js";
 import { CommandPalette } from "./CommandPalette.js";
+import { HelpOverlay } from "./HelpOverlay.js";
+import { SessionsOverlay } from "./SessionsOverlay.js";
 import { ActivityIndicator } from "./ActivityIndicator.js";
 import { PermissionDialog, QuestionDialog } from "./dialogs.js";
 import { Rule, Stat } from "./chrome.js";
@@ -42,9 +44,11 @@ function clockNow(): string {
 
 export function App() {
   const { manager, config, store } = useAppCtx();
+  const { exit: inkExit } = useInkApp();
   useApp((s) => s.version);
   const layout = useApp((s) => s.layout);
   const paletteOpen = useApp((s) => s.paletteOpen);
+  const overlay = useApp((s) => s.overlay);
   const hostStats = useApp((s) => s.hostStats);
   const session = manager.active;
   const pending = session?.pendingPermission ?? null;
@@ -79,6 +83,20 @@ export function App() {
         void session.interrupt();
         return;
       }
+      // Discoverability/onboarding overlays + explicit quit (Ctrl combos take
+      // priority over the configurable matchKey checks below).
+      if (key.ctrl && input === "g") {
+        store.getState().setOverlay("help");
+        return;
+      }
+      if (key.ctrl && input === "r") {
+        store.getState().setOverlay("sessions");
+        return;
+      }
+      if (key.ctrl && input === "q") {
+        inkExit();
+        return;
+      }
       const st = store.getState();
       if (matchKey(config.keys.palette, input, key)) return st.setPaletteOpen(true);
       if (matchKey(config.keys.layoutToggle, input, key)) return st.toggleLayout();
@@ -105,7 +123,7 @@ export function App() {
       }
       if ((key.meta ?? false) && /^[1-9]$/.test(input)) manager.activate(Number(input) - 1);
     },
-    { isActive: !pending && !paletteOpen && !tooSmall }
+    { isActive: !pending && !paletteOpen && !overlay && !tooSmall }
   );
 
   if (tooSmall) {
@@ -148,24 +166,33 @@ export function App() {
       {layout === "zen" && <TelemetryStrip />}
       <Box height={mainHeight} overflow="hidden">
         <Box flexDirection="column" flexGrow={1}>
-          <ChatPane height={chatHeight} />
-          {pending ? (
-            pending.toolName === "AskUserQuestion" ? (
-              <QuestionDialog key={pending.id} request={pending} />
-            ) : (
-              <PermissionDialog key={pending.id} request={pending} />
-            )
-          ) : paletteOpen ? (
-            <CommandPalette />
+          {/* Telescope overlays take the full chat column; dialogs/palette sit below the chat. */}
+          {overlay === "help" ? (
+            <HelpOverlay onClose={() => store.getState().setOverlay(null)} />
+          ) : overlay === "sessions" ? (
+            <SessionsOverlay onClose={() => store.getState().setOverlay(null)} />
           ) : (
             <>
-              {session?.status === "processing" && <ActivityIndicator />}
-              <InputBar />
-              <PillBar />
+              <ChatPane height={chatHeight} />
+              {pending ? (
+                pending.toolName === "AskUserQuestion" ? (
+                  <QuestionDialog key={pending.id} request={pending} />
+                ) : (
+                  <PermissionDialog key={pending.id} request={pending} />
+                )
+              ) : paletteOpen ? (
+                <CommandPalette />
+              ) : (
+                <>
+                  {session?.status === "processing" && <ActivityIndicator />}
+                  <InputBar />
+                  <PillBar />
+                </>
+              )}
             </>
           )}
         </Box>
-        {layout === "sidebar" && <SidePanel />}
+        {layout === "sidebar" && !overlay && <SidePanel />}
       </Box>
       {/* Footer: single dim status line, segments separated by ` · `, truncated to width */}
       <Box width={termWidth} overflow="hidden">
@@ -180,7 +207,7 @@ export function App() {
           ) : (
             ""
           )}
-          {` · MODE ${mode} · `}
+          {` · MODE ${mode} · ^G help · ^Q quit · `}
           <Text color={theme.good}>System OK</Text>
         </Text>
       </Box>

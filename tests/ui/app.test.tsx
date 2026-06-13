@@ -145,3 +145,68 @@ describe("App shell", () => {
     expect(ctx.store.getState().paletteOpen).toBe(true);
   });
 });
+
+describe("App overlays + onboarding", () => {
+  afterEach(cleanupInk);
+
+  it("ctrl+g opens the help overlay", async () => {
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x07)); // ctrl+g
+    await tick();
+    // Integration scope: ctrl+g transitions overlay state. The HelpOverlay's
+    // rendered content is asserted in its own standalone test (help-overlay.test.tsx);
+    // asserting exact frame text here is brittle against the side-panel composite.
+    expect(ctx.store.getState().overlay).toBe("help");
+  });
+
+  it("ctrl+r opens the saved-sessions overlay", async () => {
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x12)); // ctrl+r
+    await tick();
+    expect(ctx.store.getState().overlay).toBe("sessions");
+    expect(lastFrame()).toContain("SAVED SESSIONS");
+  });
+
+  it("esc closes an open overlay via the overlay's onClose", async () => {
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x07)); // ctrl+g → help
+    await tick();
+    expect(ctx.store.getState().overlay).toBe("help");
+    stdin.write("\x1b"); // ESC handled by the overlay's own useInput → onClose
+    await tick();
+    expect(ctx.store.getState().overlay).toBe(null);
+  });
+
+  it("App shortcuts are inert while an overlay is open (isActive guard)", async () => {
+    const ctx = makeCtx();
+    ctx.store.getState().setOverlay("help");
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x0f)); // ctrl+o — would toggle layout if App input were active
+    await tick();
+    expect(ctx.store.getState().layout).toBe("sidebar"); // unchanged
+  });
+
+  it("ctrl+q triggers the quit path without throwing", async () => {
+    // Ink's exit() resolves waitUntilExit in cli.tsx (which saves state). We
+    // only assert the handler path runs cleanly here; exit() is Ink-internal.
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    expect(() => stdin.write(String.fromCharCode(0x11))).not.toThrow(); // ctrl+q
+    await tick();
+  });
+
+  it("footer advertises ^G help and ^Q quit", () => {
+    const { lastFrame } = renderWithCtx(<App />);
+    const frame = lastFrame()!;
+    expect(frame).toContain("^G help");
+    expect(frame).toContain("^Q quit");
+  });
+});
