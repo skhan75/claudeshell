@@ -8,7 +8,7 @@ const pExecFile = promisify(execFile);
 export type GitExec = (cwd: string) => Promise<string>;
 
 const realGitExec: GitExec = async (cwd) => {
-  const { stdout } = await pExecFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd });
+  const { stdout } = await pExecFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd, timeout: 2000, maxBuffer: 1 << 16 });
   return stdout;
 };
 

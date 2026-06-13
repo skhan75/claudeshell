@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 const MAX_FILE_BYTES = 5_000_000;
+const MAX_FILES = 40;
 
 export interface HistoryHit {
   file: string;
@@ -41,7 +42,20 @@ export function searchHistory(
   const q = query.toLowerCase();
   const hits: HistoryHit[] = [];
 
-  for (const file of readdirSync(dir).filter((f) => f.endsWith(".jsonl"))) {
+  const allJsonl = readdirSync(dir).filter((f) => f.endsWith(".jsonl"));
+  const sortedJsonl = allJsonl
+    .map((file) => {
+      try {
+        return { file, mtimeMs: statSync(join(dir, file)).mtimeMs };
+      } catch {
+        return { file, mtimeMs: 0 };
+      }
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+    .slice(0, MAX_FILES)
+    .map((e) => e.file);
+
+  for (const file of sortedJsonl) {
     let raw: string;
     try {
       if (statSync(join(dir, file)).size > MAX_FILE_BYTES) continue;
