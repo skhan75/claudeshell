@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadConfig, DEFAULT_PILLS, DEFAULT_KEYS } from "../../src/core/config.js";
+import { loadConfig, DEFAULT_PILLS, DEFAULT_KEYS, DEFAULT_MODELS } from "../../src/core/config.js";
 
 let globalDir: string;
 let projectDir: string;
@@ -75,5 +75,12 @@ describe("loadConfig", () => {
   it("ignores non-object layout values", () => {
     writeFileSync(join(globalDir, "config.toml"), `layout = "zen"\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).layout).toBe("sidebar");
+  });
+
+  it("exposes a default model list, overridable in TOML", () => {
+    const cfg = loadConfig({ globalDir, cwd: projectDir });
+    expect(cfg.models).toContain("claude-opus-4-8");
+    writeFileSync(join(globalDir, "config.toml"), `models = ["my-model"]\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).models).toEqual(["my-model"]);
   });
 });

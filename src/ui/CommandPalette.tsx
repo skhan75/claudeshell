@@ -36,6 +36,10 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
     items.push({ label: `mode: ${mode}`, run: () => void session?.setPermissionMode(mode) });
   }
 
+  for (const model of config.models) {
+    items.push({ label: `model: ${model}`, run: () => void session?.setModel(model) });
+  }
+
   for (const pill of config.pills) {
     items.push({
       label: `pill: ${pill.label}`,

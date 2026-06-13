@@ -22,6 +22,12 @@ describe("buildPaletteItems", () => {
     expect(labels).toContain("pill: fix tests");
     expect(labels).toContain("slash: /commit");
   });
+
+  it("includes model-switch entries from config", () => {
+    const ctx = makeCtx();
+    const labels = buildPaletteItems(ctx).map((i) => i.label);
+    expect(labels).toContain("model: claude-opus-4-8");
+  });
 });
 
 describe("CommandPalette", () => {

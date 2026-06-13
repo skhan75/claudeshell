@@ -13,6 +13,7 @@ export interface Config {
   layout: "sidebar" | "zen";
   pills: Pill[];
   keys: Record<string, string>;
+  models: string[];
 }
 
 export const DEFAULT_PILLS: Pill[] = [
@@ -21,6 +22,8 @@ export const DEFAULT_PILLS: Pill[] = [
   { label: "commit", slash: "/commit" },
   { label: "review", slash: "/review" },
 ];
+
+export const DEFAULT_MODELS = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
 
 export const DEFAULT_KEYS: Record<string, string> = {
   palette: "ctrl+k",
@@ -34,6 +37,7 @@ interface RawConfig {
   layout?: { default?: string };
   pills?: Pill[];
   keys?: Record<string, string>;
+  models?: string[];
 }
 
 function sanitize(raw: Record<string, unknown>): RawConfig {
@@ -57,6 +61,9 @@ function sanitize(raw: Record<string, unknown>): RawConfig {
         (e): e is [string, string] => typeof e[1] === "string"
       )
     );
+  }
+  if (Array.isArray(raw.models)) {
+    out.models = raw.models.filter((m): m is string => typeof m === "string");
   }
   return out;
 }
@@ -92,5 +99,6 @@ export function loadConfig(opts: { globalDir?: string; cwd?: string } = {}): Con
     layout: layoutRaw === "zen" ? "zen" : "sidebar",
     pills: mergePills(mergePills(DEFAULT_PILLS, g.pills), p.pills),
     keys: { ...DEFAULT_KEYS, ...g.keys, ...p.keys },
+    models: p.models ?? g.models ?? DEFAULT_MODELS,
   };
 }

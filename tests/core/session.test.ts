@@ -201,6 +201,18 @@ describe("Session", () => {
     expect(s.status).toBe("crashed");
   });
 
+  it("setModel updates the displayed model immediately", async () => {
+    const noopLikeQuery: QueryFn = ({ prompt }) => {
+      async function* gen() {
+        for await (const _ of prompt) return;
+      }
+      return gen();
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn: noopLikeQuery });
+    await s.setModel("claude-sonnet-4-6");
+    expect(s.transcript.meta.model).toBe("claude-sonnet-4-6");
+  });
+
   it("dispose() denies a pending permission", async () => {
     let result: PermissionResult | undefined;
     const queryFn: QueryFn = ({ prompt, options }) => {

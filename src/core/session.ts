@@ -219,6 +219,12 @@ export class Session {
     this.onChange();
   }
 
+  async setModel(model: string): Promise<void> {
+    await this.handle?.setModel?.(model);
+    this.transcript.meta.model = model;
+    this.onChange();
+  }
+
   /** Recover a crashed tab: next send() starts a fresh query resuming the same Claude session. */
   resume(): void {
     if (this.status !== "crashed") return;
