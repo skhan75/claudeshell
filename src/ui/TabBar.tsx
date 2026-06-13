@@ -78,11 +78,13 @@ export function computeTabWindow(
   };
 }
 
-export function TabBar() {
+export function TabBar({ width }: { width?: number } = {}) {
   const { manager } = useAppCtx();
   useApp((s) => s.version);
   const { stdout } = useStdout();
-  const termWidth = stdout?.columns ?? 80;
+  // App passes the actual space the tab strip gets (left column minus the status
+  // block); fall back to the full terminal width for standalone/tests.
+  const termWidth = width ?? stdout?.columns ?? 80;
 
   // Brand prefix: "▌CLAUDESHELL " = 13 chars
   const brandWidth = 13;

@@ -215,11 +215,20 @@ export function App() {
   // IDE columns: left explorer + chat (editor) + right inspector. The left rail
   // only shows in the sidebar layout, when not hidden, on a Claude tab, and when
   // the terminal is wide enough to keep the chat usable.
-  const rightCols = layout === "sidebar" ? SIDEBAR_WIDTH : 0;
+  // The inspector is a full-height right column (top→bottom); the header/rule/chat/
+  // footer all live in the left column, so the header ends where the inspector starts.
+  const rightVisible = layout === "sidebar" && !isTerm && !overlay && !paletteOpen;
+  const rightCols = rightVisible ? SIDEBAR_WIDTH : 0;
+  const leftWidth = Math.max(20, innerWidth - rightCols);
   const leftVisible =
     layout === "sidebar" && leftPanel !== "hidden" && !isTerm && (innerWidth >= 100 || focus === "explorer");
   const leftCols = leftVisible ? LEFT_PANEL_WIDTH : 0;
-  const chatWidth = Math.max(20, layout === "sidebar" ? innerWidth - leftCols - rightCols : innerWidth - 2);
+  const chatWidth = Math.max(20, layout === "sidebar" ? leftWidth - leftCols : innerWidth - 2);
+  // The tab strip shares the header row with the compact status block; give TabBar
+  // only the space left over so it doesn't overflow the (now narrower) left column.
+  const statusWidth =
+    (isTerm ? `MODEL ${modelLabel} · `.length : 0) + `● STATUS ${statusLabel} · ${clock}`.length;
+  const tabBarWidth = Math.max(10, leftWidth - statusWidth - 1);
   const leftCwd = activeTab?.cwd ?? ".";
   const ctxFiles = session ? [...session.transcript.contextFiles] : [];
   const lastCtx = ctxFiles[ctxFiles.length - 1];
@@ -231,82 +240,95 @@ export function App() {
 
   return (
     <Box flexDirection="column" width={termWidth} height={termRows} overflow="hidden">
-      {/* Header: brand + tabs on the left, holistic session status on the right */}
-      <Box>
-        <Box flexGrow={1}>
-          <TabBar />
-        </Box>
+      {/* Top region: a left column (header + chat) beside the full-height inspector;
+          the header/rule end where the inspector begins. */}
+      <Box flexDirection="row" height={Math.max(1, termRows - FOOTER_ROWS)} overflow="hidden">
+        <Box flexDirection="column" flexGrow={1} overflow="hidden">
+          {/* Header: brand + tabs on the left, holistic session status on the right */}
         <Box>
-          <Stat label="MODEL" value={modelLabel} color={theme.accent} />
-          <Text color={theme.dim}> · </Text>
-          <Stat label="STATUS" value={statusLabel} color={statusFg} />
-          <Text color={theme.dim}> · </Text>
-          <Text color={theme.fg}>{clock}</Text>
-        </Box>
-      </Box>
-      <Rule width={innerWidth} />
-      {layout === "zen" && <TelemetryStrip />}
-      <Box height={mainHeight} overflow="hidden">
-        {/* Left IDE rail (explorer / outline) — first column, hidden during
-            overlays/palette/terminal so those can use the full width. */}
-        {leftVisible && session && !overlay && !paletteOpen && (
-          <SidebarPanel
-            width={LEFT_PANEL_WIDTH}
-            height={mainHeight}
-            cwd={leftCwd}
-            activeFile={activeFile}
-            focused={focus === "explorer"}
-            onExit={() => store.getState().setFocus("input")}
-          />
-        )}
-        {/* Overlays/palette are Claude-context but take precedence over everything
-            (including a terminal tab) so the leader's g/k/r open them over a term.
-            Otherwise: a terminal tab renders the full-width TerminalPane; a Claude
-            tab renders the chat column with dialogs/palette/input below the chat. */}
-        {overlay === "help" ? (
-          <Box flexDirection="column" flexGrow={1}>
-            <HelpOverlay onClose={() => store.getState().setOverlay(null)} />
+          <Box width={tabBarWidth} overflow="hidden">
+            <TabBar width={tabBarWidth} />
           </Box>
-        ) : overlay === "sessions" ? (
-          <Box flexDirection="column" flexGrow={1}>
-            <SessionsOverlay onClose={() => store.getState().setOverlay(null)} />
-          </Box>
-        ) : overlay === "buffers" ? (
-          <Box flexDirection="column" flexGrow={1}>
-            <BuffersOverlay onClose={() => store.getState().setOverlay(null)} />
-          </Box>
-        ) : overlay === "models" ? (
-          <Box flexDirection="column" flexGrow={1}>
-            <ModelPicker onClose={() => store.getState().setOverlay(null)} />
-          </Box>
-        ) : paletteOpen ? (
-          <Box flexDirection="column" flexGrow={1}>
-            <CommandPalette />
-          </Box>
-        ) : isTerm ? (
-          <TerminalPane height={mainHeight} onQuit={inkExit} />
-        ) : (
-          <Box flexDirection="column" flexGrow={1}>
-            <ChatPane height={chatHeight} width={chatWidth} />
-            {pending ? (
-              pending.toolName === "AskUserQuestion" ? (
-                <QuestionDialog key={pending.id} request={pending} />
-              ) : (
-                <PermissionDialog key={pending.id} request={pending} />
-              )
-            ) : (
+          <Box flexGrow={1} />
+          <Box>
+            {/* MODEL only on a terminal tab (no side panel there to carry it); Claude
+                tabs show the model in the inspector + composer, keeping the header
+                compact so it fits beside the full-height panel. */}
+            {isTerm && (
               <>
-                {session?.status === "processing" && <ActivityIndicator />}
-                <InputBar width={chatWidth} />
+                <Stat label="MODEL" value={modelLabel} color={theme.accent} />
+                <Text color={theme.dim}> · </Text>
               </>
             )}
+            <Text color={statusFg}>● </Text>
+            <Stat label="STATUS" value={statusLabel} color={statusFg} />
+            <Text color={theme.dim}> · </Text>
+            <Text color={theme.fg}>{clock}</Text>
           </Box>
-        )}
-        {layout === "sidebar" && !overlay && !paletteOpen && !isTerm && <SidePanel height={mainHeight} />}
+        </Box>
+        <Rule width={leftWidth} />
+        {layout === "zen" && <TelemetryStrip />}
+        <Box height={mainHeight} overflow="hidden">
+          {/* Left IDE rail (explorer) — hidden during overlays/palette/terminal. */}
+          {leftVisible && session && !overlay && !paletteOpen && (
+            <SidebarPanel
+              width={LEFT_PANEL_WIDTH}
+              height={mainHeight}
+              cwd={leftCwd}
+              activeFile={activeFile}
+              focused={focus === "explorer"}
+              onExit={() => store.getState().setFocus("input")}
+            />
+          )}
+          {/* Overlays/palette take precedence over a terminal tab; a Claude tab
+              renders the chat column with dialogs/palette/input below the chat. */}
+          {overlay === "help" ? (
+            <Box flexDirection="column" flexGrow={1}>
+              <HelpOverlay onClose={() => store.getState().setOverlay(null)} />
+            </Box>
+          ) : overlay === "sessions" ? (
+            <Box flexDirection="column" flexGrow={1}>
+              <SessionsOverlay onClose={() => store.getState().setOverlay(null)} />
+            </Box>
+          ) : overlay === "buffers" ? (
+            <Box flexDirection="column" flexGrow={1}>
+              <BuffersOverlay onClose={() => store.getState().setOverlay(null)} />
+            </Box>
+          ) : overlay === "models" ? (
+            <Box flexDirection="column" flexGrow={1}>
+              <ModelPicker onClose={() => store.getState().setOverlay(null)} />
+            </Box>
+          ) : paletteOpen ? (
+            <Box flexDirection="column" flexGrow={1}>
+              <CommandPalette />
+            </Box>
+          ) : isTerm ? (
+            <TerminalPane height={mainHeight} onQuit={inkExit} />
+          ) : (
+            <Box flexDirection="column" flexGrow={1}>
+              <ChatPane height={chatHeight} width={chatWidth} />
+              {pending ? (
+                pending.toolName === "AskUserQuestion" ? (
+                  <QuestionDialog key={pending.id} request={pending} />
+                ) : (
+                  <PermissionDialog key={pending.id} request={pending} />
+                )
+              ) : (
+                <>
+                  {session?.status === "processing" && <ActivityIndicator />}
+                  <InputBar width={chatWidth} />
+                </>
+              )}
+            </Box>
+          )}
+        </Box>
+        </Box>
+        {/* Right inspector — full height: from the top margin down to just above
+            the status bar. */}
+        {rightVisible && <SidePanel height={Math.max(1, termRows - FOOTER_ROWS)} />}
       </Box>
-      {/* Footer: tab chip + cwd pill + key hints on the left, a right-aligned
-          health badge with version. Padding is computed (not flexbox) so the
-          badge pins to the right edge deterministically across widths. */}
+      {/* Full-width status bar pinned to the very bottom row (VS Code-style): tab
+          chip + cwd pill + hints on the left, a right-aligned health badge. */}
       {(() => {
         const idxChip = `[${manager.activeIndex + 1}/${manager.tabs.length}]`;
         const cwdPad = ` ${cwdLabel} `;
