@@ -1,42 +1,54 @@
-# claudeshell VHS tape
-# Run from the repo root: vhs demo/claudeshell.tape
-# Produces: demo/claudeshell.gif
-
-Output demo/claudeshell.gif
-
-Set FontSize 16
-Set Width 1200
-Set Height 750
+# Demo recording for claudeshell — produces demo/claudeshell.gif
+# Regenerate with:  vhs demo/claudeshell.tape   (requires vhs, ffmpeg, ttyd, chrome)
+Output "demo/claudeshell.gif"
+Set Shell "zsh"
+Set FontSize 13
+Set Width 1320
+Set Height 760
 Set Theme "Catppuccin Mocha"
-Set Padding 16
+Set Padding 12
+Set Framerate 24
 
-# Boot the TUI
 Type "npm run dev"
 Enter
-Sleep 3s
+Sleep 10s
 
-# Type a prompt and submit
-Type "list the files in the current directory"
+# A real turn — streaming response (fills the conversation)
+Type "In one short sentence, what is claudeshell?"
 Enter
-Sleep 2s
+Sleep 13s
 
-# Open command palette (Ctrl+K), browse, then close
+# Real Claude slash commands (loaded from the live CLI)
+Type "/"
+Sleep 2600ms
+Backspace
+Sleep 600ms
+
+# @ file picker
+Type "@"
+Sleep 2400ms
+Backspace
+Sleep 600ms
+
+# Command palette
 Ctrl+K
-Sleep 1s
+Sleep 2400ms
 Escape
+Sleep 500ms
 
-# Open help overlay (Ctrl+G), view, then close
+# Help overlay
 Ctrl+G
-Sleep 1500ms
+Sleep 2400ms
 Escape
+Sleep 500ms
 
-# Open buffer list (Ctrl+B), view, then close
+# Buffer switcher
 Ctrl+B
-Sleep 1s
+Sleep 2000ms
 Escape
+Sleep 500ms
 
-# Create a new session tab (Alt+t)
+# New session tab
 Alt+t
+Sleep 2000ms
 Sleep 1s
-
-Sleep 2s
