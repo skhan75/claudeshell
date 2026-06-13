@@ -188,22 +188,29 @@ export function App() {
   // sidebar can never push the footer off-screen. The chat area gets an explicit
   // height (the rest goes to the input/pills block) and a frame-aware width.
   const termRows = stdout?.rows ?? 24;
-  const FRAME = 2;
-  const innerWidth = Math.max(1, termWidth - FRAME);
+  // Outer frame: a subtle 1-cell border in the palette's chrome color (dim — the
+  // same tint as every inner panel, so nothing clashes) plus interior padding so
+  // content breathes instead of crowding the edge.
+  const FRAME_BORDER = 2; // border cells (1 each side, both axes)
+  const FRAME_PAD_X = 2;
+  const FRAME_PAD_Y = 1;
+  const innerWidth = Math.max(1, termWidth - FRAME_BORDER - FRAME_PAD_X * 2);
   const headerRows = 2 + (layout === "zen" ? 1 : 0);
   const FOOTER_ROWS = 1;
   const INPUT_AREA_ROWS = 7; // bordered input box + pills + slack for activity/suggestions
-  const mainHeight = Math.max(4, termRows - FRAME - headerRows - FOOTER_ROWS);
+  const mainHeight = Math.max(4, termRows - FRAME_BORDER - FRAME_PAD_Y * 2 - headerRows - FOOTER_ROWS);
   const chatHeight = Math.max(3, mainHeight - INPUT_AREA_ROWS);
   const chatWidth = Math.max(20, layout === "sidebar" ? innerWidth - SIDEBAR_WIDTH : innerWidth - 2);
 
   return (
     <Box
       borderStyle="round"
-      borderColor={theme.purple}
+      borderColor={theme.dim}
       flexDirection="column"
       width={termWidth}
       height={termRows}
+      paddingX={FRAME_PAD_X}
+      paddingY={FRAME_PAD_Y}
       overflow="hidden"
     >
       {/* Header: brand + tabs on the left, holistic session status on the right */}

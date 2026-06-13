@@ -4,13 +4,15 @@ import path from "node:path";
 import { Box, Text } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
-import { Panel, SectionHeader } from "./chrome.js";
+import { Panel, SectionHeader, FilledLine } from "./chrome.js";
 import { bar, fmtK, fmtUptime, fmtComma, fmtUsd, fmtBytes, fileIcon, CONTEXT_WINDOW } from "./format.js";
 import type { SessionStatus } from "../core/types.js";
 
 const PANEL_WIDTH = 34;
 const CONTENT_WIDTH = 30; // inside the round border + paddingX:1
-const CARD_WIDTH = CONTENT_WIDTH - 4; // inside the nested card's own border + paddingX:1
+const CARD_INNER = CONTENT_WIDTH - 2; // inside the nested card's own border (no paddingX; fills edge-to-edge)
+const CARD_BG = "#121826"; // subtle raised fill for the boxed card
+const HILITE_BG = "#1b273f"; // active-buffer selection fill
 
 /** Color-code the permission mode so its risk level reads at a glance. */
 function permColor(mode: string): string {
@@ -42,9 +44,9 @@ function statusColor(status: SessionStatus): string {
 }
 
 /** Best-effort file size; null when the path can't be stat'd (deleted/relative). */
-function sizeOf(path: string): number | null {
+function sizeOf(p: string): number | null {
   try {
-    return statSync(path).size;
+    return statSync(p).size;
   } catch {
     return null;
   }
@@ -70,6 +72,18 @@ function Row({ label, value, color = theme.fg, width = CONTENT_WIDTH }: { label:
       {gap(label.length, value.length, width)}
       <Text color={color}>{value}</Text>
     </Text>
+  );
+}
+
+/** Like Row, but laid over a background fill (for the boxed card interior). */
+function FilledRow({ label, value, color = theme.fg, bg, width = CARD_INNER }: { label: string; value: string; color?: string; bg: string; width?: number }) {
+  return (
+    <FilledLine bg={bg} trail={0}>
+      <Text> </Text>
+      <Text color={theme.dim}>{label}</Text>
+      <Text>{" ".repeat(Math.max(1, width - 1 - label.length - value.length))}</Text>
+      <Text color={color}>{value}</Text>
+    </FilledLine>
   );
 }
 
@@ -106,25 +120,26 @@ export function SidePanel({ height }: { height?: number } = {}) {
 
   return (
     <Panel width={PANEL_WIDTH} height={height} flexDirection="column">
-      {/* TARGET_NODE card ─ boxed host summary with a live status dot */}
-      <Box borderStyle="round" borderColor={theme.dim} flexDirection="column" paddingX={1} width={CONTENT_WIDTH}>
-        <Text wrap="truncate">
+      {/* TARGET_NODE card ─ boxed host summary, filled, with a live status dot */}
+      <Box borderStyle="round" borderColor={theme.dim} flexDirection="column" width={CONTENT_WIDTH}>
+        <FilledLine bg={CARD_BG} trail={0}>
+          <Text> </Text>
           <Text bold color={theme.accent}>TARGET_NODE</Text>
-          {gap("TARGET_NODE".length, 1, CARD_WIDTH)}
+          <Text>{" ".repeat(Math.max(1, CARD_INNER - 1 - "TARGET_NODE".length - 1))}</Text>
           <Text color={statusColor(s.status)}>●</Text>
-        </Text>
+        </FilledLine>
         {host && (
           <>
-            <Row label="HOST" value={host.hostname} color={theme.accent} width={CARD_WIDTH} />
-            <Row label="OS" value={host.platform.split(" ")[0]} width={CARD_WIDTH} />
-            <Row label="MEM" value={`${host.memUsedPct}%`} width={CARD_WIDTH} />
-            <Row label="UP" value={fmtUptime(host.uptimeSec)} width={CARD_WIDTH} />
-            {host.branch && <Row label="BRANCH" value={`⎇ ${host.branch}`} color={theme.purple} width={CARD_WIDTH} />}
+            <FilledRow label="HOST" value={host.hostname} color={theme.accent} bg={CARD_BG} />
+            <FilledRow label="OS" value={host.platform.split(" ")[0]} bg={CARD_BG} />
+            <FilledRow label="MEM" value={`${host.memUsedPct}%`} bg={CARD_BG} />
+            <FilledRow label="UP" value={fmtUptime(host.uptimeSec)} bg={CARD_BG} />
+            {host.branch && <FilledRow label="BRANCH" value={`⎇ ${host.branch}`} color={theme.purple} bg={CARD_BG} />}
           </>
         )}
       </Box>
 
-      {/* LOADED BUFFERS ─ context files with type icon + size, active highlighted */}
+      {/* LOADED BUFFERS ─ context files with type icon + size; active is highlighted */}
       <Box marginTop={1} flexDirection="column">
         <SectionHeader label="LOADED BUFFERS" width={CONTENT_WIDTH} />
         {files.length === 0 && <Text dimColor>(no files yet)</Text>}
@@ -138,12 +153,25 @@ export function SidePanel({ height }: { height?: number } = {}) {
           const prefix = 1 + iconField.length + 1; // marker + icon + space
           const nameBudget = CONTENT_WIDTH - prefix - (szLabel ? szLabel.length + 1 : 0);
           const shown = name.length > nameBudget ? "…" + name.slice(-(nameBudget - 1)) : name;
+          if (active) {
+            const mid = Math.max(1, CONTENT_WIDTH - 1 - iconField.length - 1 - shown.length - szLabel.length);
+            return (
+              <FilledLine key={f} bg={HILITE_BG} trail={0}>
+                <Text color={theme.accent}>▎</Text>
+                <Text color={theme.accent}>{iconField}</Text>
+                <Text> </Text>
+                <Text bold color={theme.accent}>{shown}</Text>
+                <Text>{" ".repeat(mid)}</Text>
+                <Text color={theme.dim}>{szLabel}</Text>
+              </FilledLine>
+            );
+          }
           return (
             <Text key={f} wrap="truncate">
-              <Text color={theme.accent}>{active ? "▎" : " "}</Text>
-              <Text color={active ? theme.accent : theme.purple}>{iconField}</Text>
+              <Text color={theme.accent}> </Text>
+              <Text color={theme.purple}>{iconField}</Text>
               <Text> </Text>
-              <Text color={active ? theme.accent : theme.fg}>{shown}</Text>
+              <Text color={theme.fg}>{shown}</Text>
               {szLabel && (
                 <>
                   {gap(prefix + shown.length, szLabel.length, CONTENT_WIDTH)}
