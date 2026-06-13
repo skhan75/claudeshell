@@ -34,13 +34,20 @@ export class Transcript {
   usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: 0, turns: 0, contextTokens: 0 };
   meta: SessionMeta = { slashCommands: [], mcpServers: [] };
   contextFiles = new Set<string>();
+  thinkingTokens = 0;
 
   addUser(text: string): void {
+    this.thinkingTokens = 0;
     this.blocks.push({ kind: "user", text });
   }
 
   addInfo(text: string): void {
     this.blocks.push({ kind: "info", text });
+  }
+
+  private finalizeThinking(): void {
+    const last = this.blocks[this.blocks.length - 1];
+    if (last?.kind === "thinking" && last.streaming) last.streaming = false;
   }
 
   apply(msg: SdkMessage): void {
@@ -52,12 +59,27 @@ export class Transcript {
       return;
     }
 
+    if (msg.type === "system" && msg.subtype === "thinking_tokens" && typeof msg.estimated_tokens === "number") {
+      this.thinkingTokens = msg.estimated_tokens;
+      return;
+    }
+
     if (msg.type === "stream_event") {
       const delta = msg.event?.delta;
-      if (msg.event?.type === "content_block_delta" && delta?.type === "text_delta" && typeof delta.text === "string") {
-        const last = this.blocks[this.blocks.length - 1];
-        if (last?.kind === "assistant" && last.streaming) last.text += delta.text;
-        else this.blocks.push({ kind: "assistant", text: delta.text, streaming: true });
+      if (msg.event?.type === "content_block_delta") {
+        if (delta?.type === "thinking_delta" && typeof delta.thinking === "string") {
+          const last = this.blocks[this.blocks.length - 1];
+          if (last?.kind === "thinking" && last.streaming) last.text += delta.thinking;
+          else this.blocks.push({ kind: "thinking", text: delta.thinking, streaming: true });
+          return;
+        }
+        if (delta?.type === "text_delta" && typeof delta.text === "string") {
+          this.finalizeThinking();
+          const last = this.blocks[this.blocks.length - 1];
+          if (last?.kind === "assistant" && last.streaming) last.text += delta.text;
+          else this.blocks.push({ kind: "assistant", text: delta.text, streaming: true });
+          return;
+        }
       }
       return;
     }
@@ -74,6 +96,7 @@ export class Transcript {
     if (msg.type === "assistant") {
       const blocks = contentBlocks(msg);
       const text = textOf(blocks);
+      this.finalizeThinking();
       if (text !== "") {
         const last = this.blocks[this.blocks.length - 1];
         if (last?.kind === "assistant" && last.streaming) {
@@ -132,6 +155,7 @@ export class Transcript {
     }
 
     if (msg.type === "result") {
+      this.finalizeThinking();
       if (typeof msg.total_cost_usd === "number") this.usage.costUsd = msg.total_cost_usd;
       if (typeof msg.num_turns === "number") this.usage.turns = msg.num_turns;
       if (msg.subtype && msg.subtype !== "success") {

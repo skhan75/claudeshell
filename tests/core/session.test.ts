@@ -291,4 +291,17 @@ describe("Session", () => {
     // Never called send(), so handle is null
     expect(() => s.dispose()).not.toThrow();
   });
+
+  it("turnStartedAt is a number after send() and null after a result message arrives", async () => {
+    const s = new Session({
+      id: "s1", cwd: "/tmp",
+      queryFn: scriptedQuery([
+        { type: "result", subtype: "success", total_cost_usd: 0, num_turns: 1 },
+      ]),
+    });
+    s.send("hello");
+    expect(typeof s.turnStartedAt).toBe("number");
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+    expect(s.turnStartedAt).toBeNull();
+  });
 });

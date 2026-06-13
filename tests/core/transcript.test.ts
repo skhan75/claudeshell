@@ -138,4 +138,37 @@ describe("Transcript", () => {
     expect(text.kind === "info" && text.text.includes("error_max_turns")).toBe(true);
     expect(text.kind === "info" && text.text.includes("boom")).toBe(true);
   });
+
+  // ── thinking / inference display ─────────────────────────────────────────
+
+  it("thinking_delta streams into a single thinking block", () => {
+    const t = new Transcript();
+    t.apply({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "thinking_delta", thinking: "Let me " } } });
+    t.apply({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "thinking_delta", thinking: "think" } } });
+    const last = t.blocks[t.blocks.length - 1];
+    expect(last).toMatchObject({ kind: "thinking", text: "Let me think", streaming: true });
+  });
+
+  it("thinking finalizes when text follows", () => {
+    const t = new Transcript();
+    t.apply({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "thinking_delta", thinking: "plan..." } } });
+    t.apply({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "Answer" } } });
+    expect(t.blocks).toHaveLength(2);
+    expect(t.blocks[0]).toMatchObject({ kind: "thinking", streaming: false });
+    expect(t.blocks[1]).toMatchObject({ kind: "assistant", streaming: true });
+  });
+
+  it("thinking_tokens message sets thinkingTokens", () => {
+    const t = new Transcript();
+    t.apply({ type: "system", subtype: "thinking_tokens", estimated_tokens: 512 } as unknown as Parameters<Transcript["apply"]>[0]);
+    expect(t.thinkingTokens).toBe(512);
+  });
+
+  it("addUser resets thinkingTokens", () => {
+    const t = new Transcript();
+    t.apply({ type: "system", subtype: "thinking_tokens", estimated_tokens: 512 } as unknown as Parameters<Transcript["apply"]>[0]);
+    expect(t.thinkingTokens).toBe(512);
+    t.addUser("x");
+    expect(t.thinkingTokens).toBe(0);
+  });
 });

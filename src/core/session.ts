@@ -69,6 +69,7 @@ export class Session {
   readonly cwd: string;
   title: string;
   status: SessionStatus = "idle";
+  turnStartedAt: number | null = null;
   transcript = new Transcript();
   pendingPermission: PermissionRequest | null = null;
   error: string | null = null;
@@ -107,6 +108,7 @@ export class Session {
     }
     this.transcript.addUser(text);
     this.status = "processing";
+    this.turnStartedAt = Date.now();
     if (!this.queue) this.start();
     this.queue!.push({
       type: "user",
@@ -139,9 +141,13 @@ export class Session {
         this.consume(msg);
         this.onChange();
       }
-      if (this.status !== "crashed") this.status = "idle";
+      if (this.status !== "crashed") {
+        this.status = "idle";
+        this.turnStartedAt = null;
+      }
     } catch (err) {
       this.status = "crashed";
+      this.turnStartedAt = null;
       this.error = err instanceof Error ? err.message : String(err);
       this.transcript.addInfo(`✖ session crashed: ${this.error} — press r to resume`);
       this.queue = null;
@@ -157,6 +163,7 @@ export class Session {
     if (msg.type === "system" && msg.subtype === "init" && msg.session_id) this.claudeId = msg.session_id;
     if (msg.type === "result") {
       this.status = "idle";
+      this.turnStartedAt = null;
       this.interrupted = false;
     }
   }
