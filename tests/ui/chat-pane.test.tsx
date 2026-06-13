@@ -17,12 +17,16 @@ function seed(ctx: ReturnType<typeof makeCtx>) {
 }
 
 describe("ChatPane", () => {
-  it("renders user and assistant blocks", () => {
+  it("renders user and assistant blocks with role headers", () => {
     const ctx = makeCtx();
     seed(ctx);
     const { lastFrame } = renderWithCtx(<ChatPane height={10} />, ctx);
-    expect(lastFrame()).toContain("❯ refactor the JWT validation");
-    expect(lastFrame()).toContain("I see the issue");
+    const frame = lastFrame()!;
+    // Turns are now segregated by role headers with a `│ ` rule under each.
+    expect(frame).toContain("OPERATOR");
+    expect(frame).toContain("refactor the JWT validation");
+    expect(frame).toContain("CLAUDE");
+    expect(frame).toContain("I see the issue");
   });
 
   it("shows only the latest window of a long transcript and scrolls with g/G", async () => {
@@ -150,5 +154,43 @@ describe("ChatPane", () => {
     stdin.write("g"); // would jump to top if active
     await tick();
     expect(lastFrame()).toContain("line-29"); // still at bottom
+  });
+
+  it("renders a streaming thinking block with the ✻ live-reasoning marker", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    // A thinking_delta stream_event opens a streaming thinking block.
+    s.transcript.apply({
+      type: "stream_event",
+      event: { type: "content_block_delta", delta: { type: "thinking_delta", thinking: "weighing the issuer check" } },
+    });
+    ctx.store.getState().bump();
+    const { lastFrame } = renderWithCtx(<ChatPane height={10} />, ctx);
+    const frame = lastFrame()!;
+    expect(frame).toContain("✻");
+    expect(frame).toContain("weighing the issuer check");
+  });
+
+  it("finalizes thinking visually when the answer text follows", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    // Stream a thinking delta, then a text delta — thinking finalizes and the
+    // assistant answer turn begins, so both the ✻ thinking line and the CLAUDE
+    // header are present.
+    s.transcript.apply({
+      type: "stream_event",
+      event: { type: "content_block_delta", delta: { type: "thinking_delta", thinking: "checking the issuer" } },
+    });
+    s.transcript.apply({
+      type: "stream_event",
+      event: { type: "content_block_delta", delta: { type: "text_delta", text: "Here is the fix." } },
+    });
+    ctx.store.getState().bump();
+    const { lastFrame } = renderWithCtx(<ChatPane height={10} />, ctx);
+    const frame = lastFrame()!;
+    expect(frame).toContain("✻");
+    expect(frame).toContain("checking the issuer");
+    expect(frame).toContain("CLAUDE");
+    expect(frame).toContain("Here is the fix.");
   });
 });

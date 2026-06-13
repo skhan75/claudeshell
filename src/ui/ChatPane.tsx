@@ -9,6 +9,8 @@ export interface Line {
   text: string;
   color?: string;
   dim?: boolean;
+  bold?: boolean;
+  italic?: boolean;
 }
 
 /**
@@ -40,21 +42,47 @@ export function wrapText(text: string, width: number): string[] {
 }
 
 export function blockLines(b: TranscriptBlock, width: number): Line[] {
+  // Body text is indented under its role header by a `│ ` rule (2 cols), so wrap
+  // the body to width-2 to keep the rendered turn inside the pane width.
+  const bodyWidth = Math.max(1, width - 2);
   switch (b.kind) {
-    case "user":
-      return wrapText("❯ " + b.text, width).map((t) => ({ text: t, color: theme.warn }));
-    case "assistant":
-      return wrapText(b.text + (b.streaming ? "▋" : ""), width).map((t) => ({
-        text: t,
-        color: t.startsWith("+") ? theme.good : t.startsWith("-") ? theme.bad : undefined,
-      }));
+    case "user": {
+      const lines: Line[] = [{ text: "▸ OPERATOR", color: theme.warn, bold: true }];
+      for (const t of wrapText(b.text, bodyWidth)) {
+        lines.push({ text: `│ ${t}`, color: theme.warn });
+      }
+      return lines;
+    }
+    case "assistant": {
+      const lines: Line[] = [{ text: "◉ CLAUDE", color: theme.accent, bold: true }];
+      const body = wrapText(b.text + (b.streaming ? "▋" : ""), bodyWidth);
+      for (const t of body) {
+        // Preserve +/- diff coloring on the body text itself; the `│ ` rule stays accent.
+        const color = t.startsWith("+") ? theme.good : t.startsWith("-") ? theme.bad : theme.fg;
+        lines.push({ text: `│ ${t}`, color });
+      }
+      return lines;
+    }
     case "tool":
       return [{
         text: `⚙ ${b.name} ${b.detail} ${b.status === "running" ? "…" : "✓"}`.slice(0, width),
         color: theme.purple,
       }];
+    case "thinking": {
+      // Live reasoning display: dim + italic, distinct from the answer. First line
+      // carries the ✻ marker, continuations align under it with a 2-space indent.
+      const wrapped = wrapText(b.text + (b.streaming ? "▋" : ""), bodyWidth);
+      return wrapped.map((t, i) => ({
+        text: (i === 0 ? "✻ " : "  ") + t,
+        dim: true,
+        italic: true,
+      }));
+    }
     case "info":
-      return wrapText(b.text, width).map((t) => ({ text: t, dim: true }));
+      // Error-ish info (✖ …) reads in bad; ordinary info stays dim.
+      return wrapText(b.text, width).map((t) =>
+        b.text.startsWith("✖") ? { text: t, color: theme.bad } : { text: t, dim: true },
+      );
   }
 }
 
@@ -89,7 +117,16 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
   // transcript per delta. Fine for short sessions — memoize prefix wrapping (all
   // blocks except the streaming tail) before long-session support.
   const lines: Line[] = [];
-  for (const b of session?.transcript.blocks ?? []) lines.push(...blockLines(b, width));
+  const blocks = session?.transcript.blocks ?? [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    // Blank spacer between turns: precede each conversational turn header
+    // (operator / claude / thinking) with one empty line for clear separation.
+    if (i > 0 && (b.kind === "user" || b.kind === "assistant" || b.kind === "thinking")) {
+      lines.push({ text: "" });
+    }
+    lines.push(...blockLines(b, width));
+  }
   const maxOffset = Math.max(0, lines.length - height);
 
   const jump = (dir: 1 | -1) => {
@@ -145,6 +182,8 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
           key={start + i}
           color={l.color}
           dimColor={l.dim}
+          bold={l.bold}
+          italic={l.italic}
           inverse={q !== "" && l.text.toLowerCase().includes(q)}
         >
           {l.text || " "}
