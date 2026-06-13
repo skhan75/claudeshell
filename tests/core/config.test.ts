@@ -88,4 +88,10 @@ describe("loadConfig", () => {
     writeFileSync(join(globalDir, "config.toml"), `models = []\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).models).toEqual(DEFAULT_MODELS);
   });
+
+  it("reads the theme name, defaulting to cyberpunk", () => {
+    expect(loadConfig({ globalDir, cwd: projectDir }).theme).toBe("cyberpunk");
+    writeFileSync(join(globalDir, "config.toml"), `[theme]\nname = "solar"\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).theme).toBe("solar");
+  });
 });

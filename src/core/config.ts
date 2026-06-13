@@ -14,6 +14,7 @@ export interface Config {
   pills: Pill[];
   keys: Record<string, string>;
   models: string[];
+  theme: string;
 }
 
 export const DEFAULT_PILLS: Pill[] = [
@@ -38,6 +39,7 @@ interface RawConfig {
   pills?: Pill[];
   keys?: Record<string, string>;
   models?: string[];
+  theme?: { name?: string };
 }
 
 function sanitize(raw: Record<string, unknown>): RawConfig {
@@ -64,6 +66,10 @@ function sanitize(raw: Record<string, unknown>): RawConfig {
   }
   if (Array.isArray(raw.models)) {
     out.models = raw.models.filter((m): m is string => typeof m === "string");
+  }
+  const themeRaw = raw.theme;
+  if (themeRaw && typeof themeRaw === "object" && typeof (themeRaw as { name?: unknown }).name === "string") {
+    out.theme = { name: (themeRaw as { name: string }).name };
   }
   return out;
 }
@@ -100,5 +106,6 @@ export function loadConfig(opts: { globalDir?: string; cwd?: string } = {}): Con
     pills: mergePills(mergePills(DEFAULT_PILLS, g.pills), p.pills),
     keys: { ...DEFAULT_KEYS, ...g.keys, ...p.keys },
     models: (p.models?.length ? p.models : undefined) ?? (g.models?.length ? g.models : undefined) ?? DEFAULT_MODELS,
+    theme: p.theme?.name ?? g.theme?.name ?? "cyberpunk",
   };
 }

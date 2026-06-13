@@ -52,6 +52,49 @@ slash = "/commit"
 
 Key bindings support `ctrl+<letter>`, `alt+<letter>`, and `esc` forms.
 
+## Themes
+
+claudeshell ships with a built-in **cyberpunk** theme. You can create custom themes as
+TOML files under `~/.claudeshell/themes/<name>.toml` and select one in your config.
+
+### Theme keys
+
+All seven keys accept 3- or 6-digit hex color values (e.g. `#fff` or `#4cc2ff`):
+
+| Key | Role |
+|---|---|
+| `accent` | Primary highlight (tabs, input border, active elements) |
+| `dim` | Muted / secondary text |
+| `warn` | Warnings and cost budget alerts |
+| `purple` | Model name, MCP server labels |
+| `good` | Success indicators, tool `done` status |
+| `bad` | Errors, crash state |
+| `fg` | Default foreground text |
+
+### Creating a theme
+
+Create `~/.claudeshell/themes/solar.toml`:
+
+```toml
+accent  = "#b58900"
+dim     = "#657b83"
+warn    = "#cb4b16"
+purple  = "#6c71c4"
+good    = "#859900"
+bad     = "#dc322f"
+fg      = "#839496"
+```
+
+Then select it in `~/.claudeshell/config.toml`:
+
+```toml
+[theme]
+name = "solar"
+```
+
+Any keys omitted from your theme file fall back to the cyberpunk defaults. Unknown keys
+and invalid color values are silently ignored.
+
 ## Permission dialogs
 
 When Claude wants to run a tool you'll get a dialog: `y` allow once, `a` always allow

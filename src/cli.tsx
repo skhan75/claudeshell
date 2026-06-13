@@ -10,6 +10,9 @@ import { SessionManager } from "./core/session-manager.js";
 import { SystemMonitor } from "./core/system-monitor.js";
 import { loadConfig } from "./core/config.js";
 import { statePathFor } from "./core/persistence.js";
+import { applyTheme, loadThemeOverrides } from "./ui/theme.js";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const pExecFile = promisify(execFile);
 
@@ -32,6 +35,7 @@ async function main() {
 
   const cwd = process.cwd();
   const config = loadConfig({ cwd });
+  applyTheme(loadThemeOverrides(config.theme, join(homedir(), ".claudeshell", "themes")));
   const manager = new SessionManager({
     cwd,
     statePath: statePathFor(cwd),
