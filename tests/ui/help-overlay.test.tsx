@@ -19,6 +19,37 @@ describe("HelpOverlay", () => {
     expect(frame).toContain("Saved sessions");
   });
 
+  it("lists buffer switching and permission modes", () => {
+    const { lastFrame } = renderWithCtx(<HelpOverlay onClose={() => {}} />);
+    const frame = lastFrame()!;
+    // The new Global entries surface as labels in the results list.
+    expect(frame).toContain("Switch buffer");
+    expect(frame).toContain("Permission modes");
+    expect(frame).toContain("New terminal");
+  });
+
+  it("preview explains Ctrl+B buffer switching", async () => {
+    const { stdin, lastFrame } = renderWithCtx(<HelpOverlay onClose={() => {}} />);
+    await tick();
+    stdin.write("Switch buffer");
+    await tick();
+    const frame = lastFrame()!;
+    expect(frame).toContain("Ctrl+B");
+    expect(frame).toContain("buffer");
+  });
+
+  it("preview explains the permission modes", async () => {
+    const { stdin, lastFrame } = renderWithCtx(<HelpOverlay onClose={() => {}} />);
+    await tick();
+    stdin.write("Permission modes");
+    await tick();
+    const frame = lastFrame()!;
+    // The preview spells out the four modes.
+    expect(frame).toContain("plan");
+    expect(frame).toContain("acceptEdits");
+    expect(frame).toContain("bypassPermissions");
+  });
+
   it("preview mentions Ctrl+K and Ctrl+R via fuzzy navigation", async () => {
     const { stdin, lastFrame } = renderWithCtx(<HelpOverlay onClose={() => {}} />);
     await tick();

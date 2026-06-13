@@ -35,6 +35,17 @@ describe("App shell", () => {
     expect(frame).toMatch(/\d{2}:\d{2}:\d{2}/);
   });
 
+  it("header shows the configured default model on a fresh session (never '—')", () => {
+    const ctx = makeCtx();
+    const { lastFrame } = renderWithCtx(<App />, ctx);
+    const frame = lastFrame()!;
+    // A fresh session has no server-reported model yet; the header falls back to
+    // the configured default (config.models[0]) instead of an em-dash placeholder.
+    expect(frame).toContain(ctx.config.models[0]);
+    // The MODEL cell must not be the em-dash placeholder.
+    expect(frame).not.toContain("MODEL —");
+  });
+
   it("renders the footer status line (cwd + MODE + System OK)", () => {
     const { lastFrame } = renderWithCtx(<App />);
     const frame = lastFrame()!;
@@ -182,6 +193,16 @@ describe("App overlays + onboarding", () => {
     await tick();
     expect(ctx.store.getState().overlay).toBe("sessions");
     expect(lastFrame()).toContain("SAVED SESSIONS");
+  });
+
+  it("ctrl+b opens the buffers overlay", async () => {
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x02)); // ctrl+b
+    await tick();
+    expect(ctx.store.getState().overlay).toBe("buffers");
+    expect(lastFrame()).toContain("BUFFERS · OPEN TABS");
   });
 
   it("esc closes an open overlay via the overlay's onClose", async () => {

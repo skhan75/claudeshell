@@ -90,6 +90,27 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
       label: "Switch to tab N",
       desc: "Jump straight to tab 1 through 9.",
     },
+    {
+      key: "switch-buffer",
+      group: "Global",
+      binding: "Ctrl+B",
+      label: "Switch buffer (open tabs)",
+      desc: "Ctrl+B opens a centered picker of all open tabs (buffers); type to filter, ↑↓ to move, Enter to jump. The fast way to hop between sessions and terminals.",
+    },
+    {
+      key: "new-terminal",
+      group: "Global",
+      binding: "Alt+\\",
+      label: "New terminal",
+      desc: "Open a terminal tab (or use the command palette). Inside a terminal, the Ctrl+\\ leader reaches claudeshell commands (b buffers, t term, c claude, w close, …).",
+    },
+    {
+      key: "perm-modes",
+      group: "Global",
+      binding: "palette · mode: …",
+      label: "Permission modes",
+      desc: "The side panel's PERMS/MODE: default prompts before risky tools; plan is read-only planning (no edits/commands); acceptEdits auto-approves file edits; bypassPermissions runs everything without asking. Switch via the command palette (mode: …).",
+    },
     // Chat / scroll
     {
       key: "focus-chat",

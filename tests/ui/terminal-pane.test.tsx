@@ -103,6 +103,22 @@ describe("TerminalPane", () => {
     expect(pty.written).not.toContain("\x1c");
   });
 
+  it("leader then 'b' opens the buffers overlay and is NOT written to the PTY", async () => {
+    const ctx = makeCtx();
+    const pty = makeFakePty();
+    ctx.manager.createTerminal({ spawnFn: spawnFor(pty) });
+    const { stdin } = renderWithCtx(<TerminalPane height={20} />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x1c)); // leader
+    await tick();
+    stdin.write("b"); // command: buffer switcher
+    await tick();
+    expect(ctx.store.getState().overlay).toBe("buffers");
+    // Neither the leader byte nor 'b' should have reached the PTY.
+    expect(pty.written).not.toContain("b");
+    expect(pty.written).not.toContain("\x1c");
+  });
+
   it("leader then '1' activates tab 0", async () => {
     const ctx = makeCtx();
     const pty = makeFakePty();

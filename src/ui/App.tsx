@@ -11,6 +11,7 @@ import { PillBar } from "./PillBar.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { HelpOverlay } from "./HelpOverlay.js";
 import { SessionsOverlay } from "./SessionsOverlay.js";
+import { BuffersOverlay } from "./BuffersOverlay.js";
 import { TerminalPane } from "./TerminalPane.js";
 import { ActivityIndicator } from "./ActivityIndicator.js";
 import { PermissionDialog, QuestionDialog } from "./dialogs.js";
@@ -108,6 +109,11 @@ export function App() {
         store.getState().setOverlay("sessions");
         return;
       }
+      // Ctrl+B (0x02) is free globally → the blazing-fast buffer/tab switcher.
+      if (key.ctrl && input === "b") {
+        store.getState().setOverlay("buffers");
+        return;
+      }
       if (key.ctrl && input === "q") {
         inkExit();
         return;
@@ -146,7 +152,7 @@ export function App() {
   }
 
   const status: SessionStatus = session?.status ?? "idle";
-  const model = session?.transcript.meta.model ?? "—";
+  const model = session?.transcript.meta.model ?? config.models[0] ?? "—";
   const mode = session?.permissionMode ?? "default";
   const branch = hostStats?.branch ?? null;
   // Header is tab-aware: a terminal tab labels its model "shell" and surfaces the
@@ -197,6 +203,10 @@ export function App() {
           <Box flexDirection="column" flexGrow={1}>
             <SessionsOverlay onClose={() => store.getState().setOverlay(null)} />
           </Box>
+        ) : overlay === "buffers" ? (
+          <Box flexDirection="column" flexGrow={1}>
+            <BuffersOverlay onClose={() => store.getState().setOverlay(null)} />
+          </Box>
         ) : paletteOpen ? (
           <Box flexDirection="column" flexGrow={1}>
             <CommandPalette />
@@ -236,7 +246,7 @@ export function App() {
           ) : (
             ""
           )}
-          {isTerm ? ` · Ctrl+\\ leader · ^G help · ^Q quit · ` : ` · MODE ${mode} · ^G help · ^Q quit · `}
+          {isTerm ? ` · Ctrl+\\ leader · ^B buffers · ^G help · ^Q quit · ` : ` · MODE ${mode} · ^B buffers · ^G help · ^Q quit · `}
           <Text color={theme.good}>System OK</Text>
         </Text>
       </Box>

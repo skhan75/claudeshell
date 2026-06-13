@@ -3,7 +3,7 @@ import type { HostStats } from "./core/types.js";
 
 export type Layout = "sidebar" | "zen";
 export type Focus = "input" | "scroll" | "pills";
-export type Overlay = "help" | "sessions" | null;
+export type Overlay = "help" | "sessions" | "buffers" | null;
 
 export interface AppState {
   version: number;

@@ -92,6 +92,8 @@ export function TerminalPane({ height, onQuit }: { height: number; onQuit?: () =
           st.setPaletteOpen(true);
         } else if (input === "r") {
           st.setOverlay("sessions");
+        } else if (input === "b") {
+          st.setOverlay("buffers");
         } else if (input === "q") {
           onQuit?.();
         } else if (isLeader) {
@@ -132,7 +134,7 @@ export function TerminalPane({ height, onQuit }: { height: number; onQuit?: () =
       </Text>
       {leaderPending && (
         <Text color={theme.dim} wrap="truncate">
-          LEADER · 1-9 tab · t term · c claude · w close · g help · k palette · q quit
+          LEADER · 1-9 tab · b buffers · t term · c claude · w close · g help · k palette · q quit
         </Text>
       )}
       {lines.map((line, i) => (
