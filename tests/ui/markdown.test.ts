@@ -28,11 +28,11 @@ describe("renderMarkdown — inline", () => {
     expect(x.color).toBe(theme.accent); // codespan color
   });
 
-  it("inline code is accent with a bg chip", () => {
+  it("inline code is colored (no background fill)", () => {
     const lines = renderMarkdown("use `go test` now", 40);
     const code = find(lines, "go test")!;
     expect(code.color).toBe(theme.accent);
-    expect(code.bg).toBeTruthy();
+    expect(code.bg).toBeUndefined(); // no bg chips — color only
     expect(text(lines)).not.toContain("`");
   });
 
@@ -92,8 +92,9 @@ describe("renderMarkdown — blocks", () => {
     expect(text(lines)).toContain("go"); // lang label
     expect(text(lines)).toContain("fn() // **not bold**"); // inline markers literal in code
     expect(lineText(lines[0])).not.toContain("```");
-    // body line carries a code bg
-    expect(allSpans(lines).some((s) => s.bg && s.text.includes("fn()"))).toBe(true);
+    // body line uses the code color + a left gutter (no background fill)
+    expect(allSpans(lines).some((s) => s.text.includes("fn()") && !s.bg)).toBe(true);
+    expect(text(lines)).toContain("▌");
   });
 
   it("diff-fenced code colors +/- lines", () => {
@@ -126,7 +127,7 @@ describe("renderMarkdown — blocks", () => {
 describe("renderMarkdown — streaming robustness", () => {
   it("balances an unterminated fence so in-progress code renders as code", () => {
     const lines = renderMarkdown("```js\nconst x = 1", 40);
-    expect(allSpans(lines).some((s) => s.text.includes("const x = 1") && s.bg)).toBe(true);
+    expect(allSpans(lines).some((s) => s.text.includes("const x = 1"))).toBe(true);
   });
 
   it("never throws across every truncation of a rich document", () => {
@@ -176,7 +177,7 @@ describe("renderMarkdown — review-confirmed fixes", () => {
 
   it("balances a tilde fence with a tilde close (no stray backticks)", () => {
     const lines = renderMarkdown("~~~py\nx = 1", 40);
-    expect(allSpans(lines).some((s) => s.text.includes("x = 1") && s.bg)).toBe(true);
+    expect(allSpans(lines).some((s) => s.text.includes("x = 1"))).toBe(true);
     expect(text(lines)).not.toContain("```");
   });
 

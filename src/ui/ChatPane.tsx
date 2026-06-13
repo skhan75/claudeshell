@@ -38,37 +38,29 @@ export function wrapText(text: string, width: number): string[] {
   return out;
 }
 
-/** HH:MM:SS for a block timestamp; "" when absent. */
-function fmtTime(n?: number): string {
-  return n ? new Date(n).toLocaleTimeString("en-GB", { hour12: false }) : "";
-}
-
 /**
- * Render one transcript block to styled content lines (NO left rule — ChatPane
- * prepends the role rule during assembly). Assistant bodies go through the
- * markdown renderer; everything else is plain styled text.
+ * Render one transcript block to styled content lines — clean and minimal, like
+ * the Claude CLI: user prompts get a simple `❯` marker, assistant answers are
+ * rendered markdown, no role banners or rules.
  */
 export function blockLines(b: TranscriptBlock, width: number): Line[] {
-  const bodyWidth = Math.max(1, width - 2); // body sits under the `│ ` rule
   switch (b.kind) {
     case "user": {
-      const head: Span[] = [{ text: "▸ OPERATOR", color: theme.warn, bold: true }];
-      const t = fmtTime(b.ts);
-      if (t) head.push({ text: `  ${t}`, color: theme.dim, dim: true });
-      const lines: Line[] = [{ spans: head }];
-      for (const l of wrapSpans([{ text: b.text, color: theme.warn }], bodyWidth)) lines.push(l);
-      return lines;
+      // Echo the prompt with a "❯ " marker; wrapped continuations hang-indent by 2.
+      const wrapped = wrapSpans([{ text: b.text, color: theme.fg }], Math.max(1, width - 2));
+      return wrapped.map((l, i) => ({
+        spans: i === 0
+          ? [{ text: "❯ ", color: theme.accent, bold: true }, ...l.spans]
+          : [{ text: "  " }, ...l.spans],
+      }));
     }
     case "assistant": {
-      const head: Span[] = [{ text: "◉ CLAUDE", color: theme.accent, bold: true }];
-      const t = fmtTime(b.ts);
-      if (t) head.push({ text: `  ${t}`, color: theme.dim, dim: true });
-      const lines: Line[] = [{ spans: head }];
-      lines.push(...renderMarkdown(b.text, bodyWidth));
-      if (b.streaming) {
+      const lines = renderMarkdown(b.text, width);
+      if (b.streaming && lines.length) {
+        // Append the cursor to a COPY of the last line (renderMarkdown may return
+        // a shared blank-line constant — never mutate it in place).
         const last = lines[lines.length - 1];
-        if (last && last !== lines[0]) last.spans.push({ text: "▋", color: theme.accent });
-        else lines.push({ spans: [{ text: "▋", color: theme.accent }] });
+        lines[lines.length - 1] = { spans: [...last.spans, { text: "▋", color: theme.accent }] };
       }
       return lines;
     }
@@ -80,7 +72,7 @@ export function blockLines(b: TranscriptBlock, width: number): Line[] {
         }],
       }];
     case "thinking": {
-      const wrapped = wrapSpans([{ text: b.text, dim: true, italic: true }], bodyWidth);
+      const wrapped = wrapSpans([{ text: b.text, dim: true, italic: true }], Math.max(1, width - 2));
       const lines: Line[] = wrapped.map((l, i) => ({
         spans: [{ text: i === 0 ? "✻ " : "  ", dim: true, italic: true }, ...l.spans],
       }));
@@ -126,10 +118,7 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
   // Sidebar occupies 34 cols; subtract the full panel width so rule+body never
   // overflows the chat column. Zen keeps a 1-col breathing margin each side.
   const width = Math.max(20, layout === "sidebar" ? cols - 34 : cols - 2);
-  const total = heightProp ?? Math.max(6, (stdout?.rows ?? 24) - chromeRows(layout));
-  // Reserve one row for the "AI Dialogue" header; the scroll buffer gets the rest.
-  const HEADER_ROWS = 1;
-  const height = Math.max(3, total - HEADER_ROWS);
+  const height = heightProp ?? Math.max(6, (stdout?.rows ?? 24) - chromeRows(layout));
 
   const [offset, setOffset] = useState(0); // lines scrolled up from bottom
   const [search, setSearch] = useState({ active: false, query: "" });
@@ -150,18 +139,11 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
   const blocks = session?.transcript.blocks ?? [];
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
-    // Blank spacer between turns: precede each conversational turn header
-    // (operator / claude / thinking) with one empty line for clear separation.
+    // One blank line between turns for clean separation (CLI-style).
     if (i > 0 && (b.kind === "user" || b.kind === "assistant" || b.kind === "thinking")) {
       lines.push({ spans: [] });
     }
-    // Prepend the role rule to body lines (index > 0); the header line is bare.
-    const ruled = b.kind === "user" || b.kind === "assistant";
-    const ruleColor = b.kind === "user" ? theme.warn : theme.accent;
-    cachedBlockLines(b, width).forEach((l, j) => {
-      if (ruled && j > 0) lines.push({ spans: [{ text: "│ ", color: ruleColor }, ...l.spans] });
-      else lines.push(l);
-    });
+    for (const l of cachedBlockLines(b, width)) lines.push(l);
   }
   const maxOffset = Math.max(0, lines.length - height);
 
@@ -211,20 +193,8 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
   const visible = lines.slice(start, start + height);
   const q = search.query.toLowerCase();
 
-  // Chat header: "● AI Dialogue" left, "Session #<id>" right (computed padding).
-  const sid = (session?.claudeSessionId ?? session?.id ?? "").slice(-6);
-  const headLeft = "● AI Dialogue";
-  const headRight = sid ? `Session #${sid}` : "";
-  const headPad = " ".repeat(Math.max(1, width - headLeft.length - headRight.length));
-
   return (
-    <Box flexDirection="column" height={total + (search.active || search.query ? 1 : 0)}>
-      <Text wrap="truncate">
-        <Text color={theme.good}>● </Text>
-        <Text color={theme.fg} bold>AI Dialogue</Text>
-        {headPad}
-        <Text color={theme.dim}>{headRight}</Text>
-      </Text>
+    <Box flexDirection="column" height={height + (search.active || search.query ? 1 : 0)}>
       {visible.map((l, i) => {
         const hit = q !== "" && lineText(l).toLowerCase().includes(q);
         const spans = l.spans.length ? l.spans : [{ text: " " } as Span];

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
@@ -19,8 +19,17 @@ export function InputBar() {
   // When set, the user pressed Esc to dismiss a picker; suppress suggestions
   // until the query changes again (so the next Enter sends normally).
   const [dismissed, setDismissed] = useState(false);
+  // Submitted-prompt history for ↑/↓ recall. histIdx === null means "editing a
+  // fresh line"; reset both when the active session changes.
+  const [history, setHistory] = useState<string[]>([]);
+  const [histIdx, setHistIdx] = useState<number | null>(null);
   const session = manager.active;
   const focused = focus === "input";
+
+  useEffect(() => {
+    setHistory([]);
+    setHistIdx(null);
+  }, [session?.id]);
 
   // Slash source is the real CLI command list the SDK reports on the session's
   // transcript meta (populated eagerly). Normalize each entry to a leading "/".
@@ -104,8 +113,36 @@ export function InputBar() {
 
       if (key.return) {
         const t = text.trim();
-        if (t !== "") session?.send(t);
+        if (t !== "") {
+          session?.send(t);
+          setHistory((h) => (h[h.length - 1] === t ? h : [...h, t]));
+        }
         setText("");
+        setSel(0);
+        setDismissed(false);
+        setHistIdx(null);
+        return;
+      }
+      // ↑/↓ (no picker open) walk the submitted-prompt history.
+      if (key.upArrow) {
+        if (history.length === 0) return;
+        const idx = histIdx === null ? history.length - 1 : Math.max(0, histIdx - 1);
+        setText(history[idx]);
+        setHistIdx(idx);
+        setSel(0);
+        setDismissed(false);
+        return;
+      }
+      if (key.downArrow) {
+        if (histIdx === null) return;
+        if (histIdx < history.length - 1) {
+          const idx = histIdx + 1;
+          setText(history[idx]);
+          setHistIdx(idx);
+        } else {
+          setHistIdx(null);
+          setText("");
+        }
         setSel(0);
         setDismissed(false);
         return;
@@ -120,42 +157,29 @@ export function InputBar() {
         setText((t) => t.slice(0, -1));
         setSel(0);
         setDismissed(false);
+        setHistIdx(null);
         return;
       }
       if (input && !key.ctrl && !key.meta) {
         setText((t) => t + input);
         setSel(0);
         setDismissed(false);
+        setHistIdx(null);
       }
     },
     { isActive }
   );
 
-  const mode = session?.permissionMode ?? "default";
   const footerModel = session?.transcript.meta.model ?? config.models[0] ?? "—";
 
   return (
     <Box flexDirection="column">
       <Panel accent={focused}>
-        <Box justifyContent="space-between">
-          <Text color={theme.dim} bold>
-            ❯ PROMPT
-          </Text>
-          <Text color={theme.dim}>
-            MODE: <Text color={theme.purple}>{mode}</Text>
-          </Text>
-        </Box>
         <Box>
           <Text color={theme.accent}>❯ </Text>
           <Text color={theme.fg}>{text}</Text>
           {focused && <Text color={theme.accent}>▋</Text>}
-          {text === "" && <Text dimColor> type a message…</Text>}
-        </Box>
-        <Box justifyContent="space-between">
-          <Text dimColor>↑↓ pick · Tab complete · / cmds · @ paths</Text>
-          <Text color={theme.dim}>
-            <Text color={theme.good}>● </Text>Model: <Text color={theme.accent}>{footerModel}</Text>
-          </Text>
+          {text === "" && <Text dimColor>type a message…</Text>}
         </Box>
       </Panel>
       {picker === "slash" && (
@@ -179,6 +203,12 @@ export function InputBar() {
           ))}
         </Box>
       )}
+      <Box justifyContent="space-between" paddingX={1}>
+        <Text dimColor>↑↓ history · Tab autocomplete · / cmds · @ paths</Text>
+        <Text color={theme.dim}>
+          <Text color={theme.good}>● </Text>Model: <Text color={theme.accent}>{footerModel}</Text>
+        </Text>
+      </Box>
     </Box>
   );
 }

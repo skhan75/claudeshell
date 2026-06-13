@@ -16,12 +16,30 @@ describe("InputBar", () => {
     // Before any init, the model falls back to the configured default.
     expect(lastFrame()).toContain("Model:");
     expect(lastFrame()).toContain(ctx.config.models[0]);
-    expect(lastFrame()).toContain("Tab complete");
+    expect(lastFrame()).toContain("history");
+    expect(lastFrame()).toContain("autocomplete");
+    // The clean prompt box has no PROMPT/MODE labels.
+    expect(lastFrame()).not.toContain("PROMPT");
+    expect(lastFrame()).not.toContain("MODE:");
     // Once the SDK init reports the effective model, the footer reflects it.
     ctx.manager.active!.transcript.apply({ type: "system", subtype: "init", model: "claude-sonnet-4-6" });
     ctx.store.getState().bump();
     await tick();
     expect(lastFrame()).toContain("claude-sonnet-4-6");
+  });
+
+  it("↑ recalls the previously submitted prompt", async () => {
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("first prompt");
+    await tick();
+    stdin.write("\r"); // submit → pushed to history, input cleared
+    await tick();
+    expect(lastFrame()).not.toContain("first prompt");
+    stdin.write("\x1b[A"); // up arrow → recall
+    await tick();
+    expect(lastFrame()).toContain("first prompt");
   });
 
   it("types and submits a prompt to the active session", async () => {

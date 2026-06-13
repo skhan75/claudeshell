@@ -17,26 +17,18 @@ function seed(ctx: ReturnType<typeof makeCtx>) {
 }
 
 describe("ChatPane", () => {
-  it("renders user and assistant blocks with role headers", () => {
+  it("renders the prompt with a ❯ marker and the answer as plain markdown (no banners)", () => {
     const ctx = makeCtx();
     seed(ctx);
     const { lastFrame } = renderWithCtx(<ChatPane height={10} />, ctx);
     const frame = lastFrame()!;
-    // Turns are now segregated by role headers with a `│ ` rule under each.
-    expect(frame).toContain("OPERATOR");
+    // Clean & minimal: a "❯" prompt marker, no OPERATOR/CLAUDE/AI Dialogue chrome.
+    expect(frame).toContain("❯");
     expect(frame).toContain("refactor the JWT validation");
-    expect(frame).toContain("CLAUDE");
     expect(frame).toContain("I see the issue");
-  });
-
-  it("renders the AI Dialogue header with the session id", () => {
-    const ctx = makeCtx();
-    const s = ctx.manager.active!;
-    seed(ctx);
-    const frame = renderWithCtx(<ChatPane height={12} />, ctx).lastFrame()!;
-    expect(frame).toContain("AI Dialogue");
-    // Falls back to the local session id (last 6 chars) until the SDK reports one.
-    expect(frame).toContain(`Session #${s.id.slice(-6)}`);
+    expect(frame).not.toContain("OPERATOR");
+    expect(frame).not.toContain("CLAUDE");
+    expect(frame).not.toContain("AI Dialogue");
   });
 
   it("renders markdown in assistant answers (bold/heading/list/code), stripping markers", () => {
@@ -55,15 +47,6 @@ describe("ChatPane", () => {
     expect(frame).not.toContain("##");
     expect(frame).not.toContain("**");
     expect(frame).not.toContain("`go test`");
-  });
-
-  it("shows an HH:MM:SS timestamp on the operator header", () => {
-    const ctx = makeCtx();
-    const s = ctx.manager.active!;
-    s.transcript.addUser("hello"); // addUser stamps ts: Date.now()
-    ctx.store.getState().bump();
-    const frame = renderWithCtx(<ChatPane height={10} />, ctx).lastFrame()!;
-    expect(frame).toMatch(/\d\d:\d\d:\d\d/);
   });
 
   it("appends a streaming cursor to a streaming assistant answer", () => {
@@ -240,7 +223,6 @@ describe("ChatPane", () => {
     const frame = lastFrame()!;
     expect(frame).toContain("✻");
     expect(frame).toContain("checking the issuer");
-    expect(frame).toContain("CLAUDE");
     expect(frame).toContain("Here is the fix.");
   });
 });

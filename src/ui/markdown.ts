@@ -14,9 +14,8 @@ import { wrapSpans, lineText, type Span, type Line } from "./wrap-spans.js";
 
 marked.setOptions({ gfm: true, breaks: false });
 
-// Subtle backgrounds that read as distinct surfaces over the app's INK_BG (#0b0e14).
-const CODESPAN_BG = "#16202e"; // inline `code` chip
-const CODE_BG = "#10151f"; // fenced code panel
+// Code reads as a distinct COLOR (no background fills — those look like patches in
+// a terminal; the Claude CLI uses color + a left gutter, not bg).
 const CODE_FG = "#aeb9d4"; // code text — cooler/quieter than prose fg
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -73,7 +72,7 @@ function inline(tokens: Tok[], acc: Style, out: Span[]): void {
         inline(tk.tokens, merge(acc, { strikethrough: true }), out);
         break;
       case "codespan":
-        out.push(styled(decodeEntities(tk.text ?? ""), merge(acc, { color: theme.accent, bg: CODESPAN_BG })));
+        out.push(styled(decodeEntities(tk.text ?? ""), merge(acc, { color: theme.accent })));
         break;
       case "link": {
         const linkAcc = merge(acc, { color: theme.accent, underline: true });
@@ -211,14 +210,9 @@ function renderCode(tk: Tok, width: number): Line[] {
   const lang = (tk.lang ?? "").trim().toLowerCase();
   const diffMode = lang === "diff" || lang === "patch";
   const lines: Line[] = [];
-  // Header: a left rule + the language label.
-  lines.push({
-    spans: [
-      { text: "▐ ", color: theme.accent },
-      { text: lang || "code", color: lang ? theme.good : theme.dim },
-    ],
-  });
-  const bodyW = Math.max(1, width - 2); // rule occupies 2 cols
+  // Optional dim language label; a left gutter marks the block (no bg fill).
+  if (lang) lines.push({ spans: [{ text: "▌ ", color: theme.dim }, { text: lang, color: theme.dim, dim: true }] });
+  const bodyW = Math.max(1, width - 2); // gutter occupies 2 cols
   const raw = String(tk.text ?? "").replace(/\n$/, "");
   for (const srcLine of raw.split("\n")) {
     let codeColor = CODE_FG;
@@ -228,20 +222,12 @@ function renderCode(tk: Tok, width: number): Line[] {
       else if (c === "-") codeColor = theme.bad;
       else if (c === "@") codeColor = theme.purple;
     }
-    // Hard char-wrap (preserve alignment); pad each slice so the bg fills the panel.
-    let rest = srcLine.length === 0 ? [""] : [];
-    if (srcLine.length > 0) {
-      for (let i = 0; i < srcLine.length; i += bodyW) rest.push(srcLine.slice(i, i + bodyW));
+    // Hard char-wrap to preserve code alignment; no padding, no background.
+    const slices = srcLine.length === 0 ? [""] : [];
+    for (let i = 0; i < srcLine.length; i += bodyW) slices.push(srcLine.slice(i, i + bodyW));
+    for (const slice of slices) {
+      lines.push({ spans: [{ text: "▌ ", color: theme.dim }, { text: slice, color: codeColor }] });
     }
-    rest.forEach((slice, i) => {
-      const padded = slice + " ".repeat(Math.max(0, bodyW - [...slice].length));
-      lines.push({
-        spans: [
-          { text: "▌ ", color: i === 0 ? theme.accent : theme.dim },
-          { text: padded, color: codeColor, bg: CODE_BG },
-        ],
-      });
-    });
   }
   return lines;
 }
