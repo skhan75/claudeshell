@@ -71,10 +71,13 @@ async function main() {
   const instance = render(
     <AppContext.Provider value={{ manager, config, store }}>
       <App />
-    </AppContext.Provider>
+    </AppContext.Provider>,
+    // exitOnCtrlC:false so Ctrl+C reaches our handlers — a terminal tab can send
+    // \x03 to its program; Claude tabs quit via the explicit Ctrl+C handler in App.
+    { exitOnCtrlC: false }
   );
 
-  await instance.waitUntilExit(); // Ctrl+C unmounts Ink (default exitOnCtrlC)
+  await instance.waitUntilExit();
   cleanup();
 }
 

@@ -42,7 +42,7 @@ describe("SessionsOverlay", () => {
     const claudeDir = mkdtempSync(join(tmpdir(), "cs-claude-"));
     seedSession(claudeDir, ctx.manager.active!.cwd, "abc123", "fix the jwt bug");
 
-    const before = ctx.manager.sessions.length;
+    const before = ctx.manager.tabs.length;
     let closed = false;
     const { stdin } = renderWithCtx(
       <SessionsOverlay onClose={() => (closed = true)} claudeDir={claudeDir} />,
@@ -52,7 +52,7 @@ describe("SessionsOverlay", () => {
     stdin.write("\r"); // resume highlighted
     await tick();
 
-    expect(ctx.manager.sessions.length).toBe(before + 1);
+    expect(ctx.manager.tabs.length).toBe(before + 1);
     const newTab = ctx.manager.active!;
     expect(newTab.title).toBe("fix the jwt bug");
     expect(newTab.claudeSessionId).toBe("abc123");

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { SessionManager } from "../../src/core/session-manager.js";
 import { loadState, statePathFor } from "../../src/core/persistence.js";
 import type { QueryFn } from "../../src/core/types.js";
+import type { SpawnFn } from "../../src/core/terminal.js";
 
 const noopQuery: QueryFn = ({ prompt }) => {
   async function* gen() {
@@ -12,6 +13,15 @@ const noopQuery: QueryFn = ({ prompt }) => {
   }
   return gen();
 };
+
+// Duck-typed fake PTY so no real shell spawns (node-pty never loads in tests).
+const fakeSpawn: SpawnFn = () => ({
+  onData() {},
+  onExit() {},
+  write() {},
+  resize() {},
+  kill() {},
+});
 
 function tmpState(): string {
   return join(mkdtempSync(join(tmpdir(), "cs-state-")), "state.json");
@@ -22,12 +32,12 @@ describe("SessionManager", () => {
     const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
     const a = m.create();
     const b = m.create();
-    expect(m.sessions).toHaveLength(2);
+    expect(m.tabs).toHaveLength(2);
     expect(m.active?.id).toBe(b.id);
     m.activate(0);
     expect(m.active?.id).toBe(a.id);
     m.close(a.id);
-    expect(m.sessions).toHaveLength(1);
+    expect(m.tabs).toHaveLength(1);
     expect(m.active?.id).toBe(b.id);
   });
 
@@ -49,9 +59,9 @@ describe("SessionManager", () => {
 
     const m2 = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery });
     m2.restoreState();
-    expect(m2.sessions).toHaveLength(1);
-    expect(m2.sessions[0].title).toBe("jwt work");
-    expect(m2.sessions[0].claudeSessionId).toBe("claude-abc");
+    expect(m2.tabs).toHaveLength(1);
+    expect(m2.tabs[0].title).toBe("jwt work");
+    expect((m2.tabs[0] as { claudeSessionId?: string }).claudeSessionId).toBe("claude-abc");
   });
 
   it("backs up corrupt state instead of crashing", () => {
@@ -64,7 +74,7 @@ describe("SessionManager", () => {
   it("always keeps at least one session after restore", () => {
     const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
     m.restoreState();
-    expect(m.sessions.length).toBe(1);
+    expect(m.tabs.length).toBe(1);
   });
 
   it("keeps the active tab focused when closing a tab before it", () => {
@@ -110,8 +120,66 @@ describe("SessionManager", () => {
     );
     const m = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery });
     m.restoreState();
-    expect(m.sessions).toHaveLength(1);
-    expect(m.sessions[0].title).toBe("good");
+    expect(m.tabs).toHaveLength(1);
+    expect(m.tabs[0].title).toBe("good");
+  });
+
+  // --- Terminal tab type ---
+
+  it("createTerminal adds a terminal tab, makes it active, and active (claude getter) is undefined", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    const claude = m.create();
+    const term = m.createTerminal({ spawnFn: fakeSpawn });
+    expect(m.tabs).toHaveLength(2);
+    // The terminal is now the active tab...
+    expect(m.activeTab?.kind).toBe("terminal");
+    expect(m.activeTab?.id).toBe(term.id);
+    // ...but the Claude getter returns undefined while a terminal is active.
+    expect(m.active).toBeUndefined();
+    // Switching back to the claude tab makes active defined again.
+    m.activate(0);
+    expect(m.activeTab?.kind).toBe("claude");
+    expect(m.active?.id).toBe(claude.id);
+  });
+
+  it("saveState persists only claude tabs (terminals are not restored)", () => {
+    const statePath = tmpState();
+    const m1 = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery });
+    const claude = m1.create();
+    claude.title = "real work";
+    m1.createTerminal({ spawnFn: fakeSpawn });
+    expect(m1.tabs).toHaveLength(2);
+    m1.saveState();
+
+    const m2 = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery });
+    m2.restoreState();
+    // Only the claude tab comes back; the terminal was never persisted.
+    expect(m2.tabs).toHaveLength(1);
+    expect(m2.tabs[0].kind).toBe("claude");
+    expect(m2.tabs[0].title).toBe("real work");
+  });
+
+  it("close() removes a terminal tab and disposes it", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    m.create();
+    const term = m.createTerminal({ spawnFn: fakeSpawn });
+    let killed = false;
+    const spy = m.createTerminal({
+      spawnFn: () => ({
+        onData() {},
+        onExit() {},
+        write() {},
+        resize() {},
+        kill() { killed = true; },
+      }),
+    });
+    expect(m.tabs).toHaveLength(3);
+    m.close(spy.id);
+    expect(killed).toBe(true);
+    expect(m.tabs).toHaveLength(2);
+    expect(m.tabs.some((t) => t.id === spy.id)).toBe(false);
+    // The other terminal is unaffected.
+    expect(m.tabs.some((t) => t.id === term.id)).toBe(true);
   });
 
   // --- Pinning regression tests for review fixes ---

@@ -1,6 +1,10 @@
 import { Session } from "./session.js";
+import { Terminal, type SpawnFn } from "./terminal.js";
 import { loadState, saveState, type SavedState } from "./persistence.js";
 import type { QueryFn } from "./types.js";
+
+/** A tab is either a Claude session or a terminal PTY tab. */
+export type Tab = Session | Terminal;
 
 export interface ManagerOpts {
   cwd: string;
@@ -9,7 +13,7 @@ export interface ManagerOpts {
 }
 
 export class SessionManager {
-  sessions: Session[] = [];
+  tabs: Tab[] = [];
   activeIndex = 0;
   private counter = 0;
   private listeners = new Set<() => void>();
@@ -25,8 +29,19 @@ export class SessionManager {
     for (const l of this.listeners) l();
   }
 
+  /**
+   * The active tab ONLY when it is a Claude session; otherwise undefined.
+   * This keeps every Claude UI component working unchanged — when a terminal
+   * tab is active those components see `undefined` and render null.
+   */
   get active(): Session | undefined {
-    return this.sessions[this.activeIndex];
+    const tab = this.tabs[this.activeIndex];
+    return tab?.kind === "claude" ? tab : undefined;
+  }
+
+  /** The active tab of either kind. App + TabBar use this. */
+  get activeTab(): Tab | undefined {
+    return this.tabs[this.activeIndex];
   }
 
   create(init?: { resumeSessionId?: string; title?: string }): Session {
@@ -39,27 +54,43 @@ export class SessionManager {
       title: init?.title,
       onChange: () => this.notify(),
     });
-    this.sessions.push(session);
-    this.activeIndex = this.sessions.length - 1;
+    this.tabs.push(session);
+    this.activeIndex = this.tabs.length - 1;
     this.notify();
     return session;
   }
 
+  createTerminal(init?: { spawnFn?: SpawnFn; cols?: number; rows?: number; cwd?: string }): Terminal {
+    const id = `s${++this.counter}`;
+    const terminal = new Terminal({
+      id,
+      cwd: init?.cwd ?? this.opts.cwd,
+      cols: init?.cols,
+      rows: init?.rows,
+      spawnFn: init?.spawnFn,
+      onChange: () => this.notify(),
+    });
+    this.tabs.push(terminal);
+    this.activeIndex = this.tabs.length - 1;
+    this.notify();
+    return terminal;
+  }
+
   activate(index: number): void {
-    if (index >= 0 && index < this.sessions.length) {
+    if (index >= 0 && index < this.tabs.length) {
       this.activeIndex = index;
       this.notify();
     }
   }
 
   close(id: string): void {
-    const i = this.sessions.findIndex((s) => s.id === id);
+    const i = this.tabs.findIndex((t) => t.id === id);
     if (i === -1) return;
-    this.sessions[i].dispose();
-    this.sessions.splice(i, 1);
-    if (this.sessions.length === 0) this.create();
+    this.tabs[i].dispose();
+    this.tabs.splice(i, 1);
+    if (this.tabs.length === 0) this.create();
     if (i < this.activeIndex) this.activeIndex--;
-    this.activeIndex = Math.max(0, Math.min(this.activeIndex, this.sessions.length - 1));
+    this.activeIndex = Math.max(0, Math.min(this.activeIndex, this.tabs.length - 1));
     this.notify();
   }
 
@@ -68,9 +99,12 @@ export class SessionManager {
       version: 1,
       active: this.activeIndex,
       counter: this.counter,
-      sessions: this.sessions.map((s) => ({
-        id: s.id, title: s.title, cwd: s.cwd, claudeSessionId: s.claudeSessionId,
-      })),
+      // Persist ONLY claude tabs — terminals are ephemeral PTYs.
+      sessions: this.tabs
+        .filter((t): t is Session => t.kind === "claude")
+        .map((s) => ({
+          id: s.id, title: s.title, cwd: s.cwd, claudeSessionId: s.claudeSessionId,
+        })),
     };
     saveState(this.opts.statePath, state);
   }
@@ -90,25 +124,25 @@ export class SessionManager {
           title: saved.title,
           onChange: () => this.notify(),
         });
-        this.sessions.push(session);
+        this.tabs.push(session);
       }
-      // Validate counter: must be a non-negative integer; fall back to session
+      // Validate counter: must be a non-negative integer; fall back to tab
       // count so the next create() id is always beyond any restored id.
       this.counter =
         Number.isInteger(state.counter) && state.counter >= 0
           ? state.counter
-          : this.sessions.length;
+          : this.tabs.length;
       // Validate active: must be a non-negative integer within bounds; clamp
-      // to [0, sessions.length-1] so manager.active is never undefined.
+      // to [0, tabs.length-1] so manager.activeTab is never undefined.
       this.activeIndex = Number.isInteger(state.active)
-        ? Math.max(0, Math.min(state.active, Math.max(0, this.sessions.length - 1)))
+        ? Math.max(0, Math.min(state.active, Math.max(0, this.tabs.length - 1)))
         : 0;
     }
-    if (this.sessions.length === 0) this.create();
+    if (this.tabs.length === 0) this.create();
     this.notify();
   }
 
   dispose(): void {
-    for (const s of this.sessions) s.dispose();
+    for (const t of this.tabs) t.dispose();
   }
 }

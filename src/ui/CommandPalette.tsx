@@ -18,12 +18,13 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
   const session = manager.active;
   const items: PaletteItem[] = [];
 
-  manager.sessions.forEach((s, i) => {
+  manager.tabs.forEach((s, i) => {
     // Only tabs 1-9 have an alt+digit shortcut (App handles /^[1-9]$/); omit the hint beyond that.
     items.push({ label: `switch: ${s.title}`, hint: i < 9 ? `alt+${i + 1}` : undefined, run: () => manager.activate(i) });
   });
 
   items.push({ label: "action: new session", run: () => void manager.create() });
+  items.push({ label: "action: new terminal", run: () => void manager.createTerminal() });
   items.push({ label: "action: close session", run: () => session && manager.close(session.id) });
   items.push({ label: "action: toggle layout", run: () => store.getState().toggleLayout() });
   items.push({ label: "action: interrupt session", run: () => void session?.interrupt() });

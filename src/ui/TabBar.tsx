@@ -9,6 +9,9 @@ const STATUS_GLYPH: Record<string, string> = {
   "awaiting-permission": " ⚠",
   "awaiting-input": " ?",
   crashed: " ✖",
+  // Terminal-tab statuses.
+  running: " ▸",
+  exited: " ✖",
 };
 
 /** Measure the display width of a single tab label string (without ANSI). */
@@ -85,9 +88,10 @@ export function TabBar() {
   const brandWidth = 13;
   const availableWidth = Math.max(10, termWidth - brandWidth);
 
-  const tabs = manager.sessions.map((s, i) => ({
-    label: ` ${i + 1}:${s.title}${STATUS_GLYPH[s.status] ?? ""} `,
-    session: s,
+  const tabs = manager.tabs.map((t, i) => ({
+    // Terminal tabs are marked with a leading `$ ` so they read distinctly.
+    label: ` ${i + 1}:${t.kind === "terminal" ? "$ " : ""}${t.title}${STATUS_GLYPH[t.status] ?? ""} `,
+    session: t,
     index: i,
   }));
 

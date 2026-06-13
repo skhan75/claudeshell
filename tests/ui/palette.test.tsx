@@ -16,6 +16,7 @@ describe("buildPaletteItems", () => {
     const labels = buildPaletteItems(ctx).map((i) => i.label);
     expect(labels).toContain("switch: new session");
     expect(labels).toContain("action: new session");
+    expect(labels).toContain("action: new terminal");
     expect(labels).toContain("action: toggle layout");
     expect(labels).toContain("action: search history");
     expect(labels.some((l) => l.startsWith("mode:"))).toBe(true);

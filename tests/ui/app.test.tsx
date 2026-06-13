@@ -2,6 +2,19 @@ import { describe, it, expect, afterEach } from "vitest";
 import React from "react";
 import { App } from "../../src/ui/App.js";
 import { renderWithCtx, makeCtx, cleanupInk, tick } from "./helpers.js";
+import type { PtyLike, SpawnFn } from "../../src/core/terminal.js";
+
+// A no-op fake PTY so terminal tabs in App tests never touch node-pty.
+function fakePty(): PtyLike {
+  return {
+    onData() {},
+    onExit() {},
+    write() {},
+    resize() {},
+    kill() {},
+  };
+}
+const fakeSpawn: SpawnFn = () => fakePty();
 
 describe("App shell", () => {
   afterEach(cleanupInk);
@@ -44,7 +57,7 @@ describe("App shell", () => {
     await tick();
     stdin.write("t"); // alt+t
     await tick();
-    expect(ctx.manager.sessions).toHaveLength(2);
+    expect(ctx.manager.tabs).toHaveLength(2);
     expect(ctx.manager.activeIndex).toBe(1);
     expect(lastFrame()).toContain("2:");
     stdin.write("1"); // alt+1
@@ -208,5 +221,46 @@ describe("App overlays + onboarding", () => {
     const frame = lastFrame()!;
     expect(frame).toContain("^G help");
     expect(frame).toContain("^Q quit");
+  });
+});
+
+describe("App terminal tabs", () => {
+  afterEach(cleanupInk);
+
+  it("creating a terminal makes it the active tab", async () => {
+    // ink-testing-library does not set key.meta for ESC+'\\' (the parser's
+    // metaKeyCodeRe only matches ESC+[a-zA-Z0-9]), so we exercise the
+    // manager-level path the Alt+\ handler drives, per the task's pragmatic note.
+    const ctx = makeCtx();
+    const tabsBefore = ctx.manager.tabs.length;
+    ctx.manager.createTerminal({ spawnFn: fakeSpawn });
+    ctx.store.getState().bump();
+    renderWithCtx(<App />, ctx);
+    await tick();
+    expect(ctx.manager.tabs.length).toBe(tabsBefore + 1);
+    expect(ctx.manager.activeTab!.kind).toBe("terminal");
+  });
+
+  it("a terminal tab renders the TerminalPane and labels the model 'shell'", async () => {
+    const ctx = makeCtx();
+    ctx.manager.createTerminal({ spawnFn: fakeSpawn });
+    ctx.store.getState().bump();
+    const { lastFrame } = renderWithCtx(<App />, ctx);
+    await tick();
+    const frame = lastFrame()!;
+    expect(frame).toContain("TERM"); // TerminalPane title
+    expect(frame).toContain("shell"); // header MODEL label
+  });
+
+  it("App's ctrl+o is inert while a terminal tab is active (input owned by the pane)", async () => {
+    const ctx = makeCtx();
+    ctx.manager.createTerminal({ spawnFn: fakeSpawn });
+    ctx.store.getState().bump();
+    expect(ctx.store.getState().layout).toBe("sidebar");
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x0f)); // ctrl+o
+    await tick();
+    expect(ctx.store.getState().layout).toBe("sidebar"); // unchanged — App input inert
   });
 });

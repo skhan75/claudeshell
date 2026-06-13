@@ -11,6 +11,7 @@ import { PillBar } from "./PillBar.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { HelpOverlay } from "./HelpOverlay.js";
 import { SessionsOverlay } from "./SessionsOverlay.js";
+import { TerminalPane } from "./TerminalPane.js";
 import { ActivityIndicator } from "./ActivityIndicator.js";
 import { PermissionDialog, QuestionDialog } from "./dialogs.js";
 import { Rule, Stat } from "./chrome.js";
@@ -52,6 +53,9 @@ export function App() {
   const hostStats = useApp((s) => s.hostStats);
   const session = manager.active;
   const pending = session?.pendingPermission ?? null;
+  const activeTab = manager.activeTab;
+  const terminalTab = activeTab?.kind === "terminal" ? activeTab : null;
+  const isTerm = terminalTab !== null;
 
   useEffect(() => manager.subscribe(() => store.getState().bump()), [manager, store]);
 
@@ -81,6 +85,17 @@ export function App() {
       }
       if (key.escape && session?.status === "processing") {
         void session.interrupt();
+        return;
+      }
+      // exitOnCtrlC is disabled (cli.tsx) so Ctrl+C reaches us; preserve
+      // Ctrl+C-quits from Claude tabs (terminal tabs route their own input).
+      if (key.ctrl && input === "c") {
+        inkExit();
+        return;
+      }
+      // Alt+\ spawns a terminal tab.
+      if ((key.meta ?? false) && input === "\\") {
+        manager.createTerminal();
         return;
       }
       // Discoverability/onboarding overlays + explicit quit (Ctrl combos take
@@ -123,7 +138,7 @@ export function App() {
       }
       if ((key.meta ?? false) && /^[1-9]$/.test(input)) manager.activate(Number(input) - 1);
     },
-    { isActive: !pending && !paletteOpen && !overlay && !tooSmall }
+    { isActive: !pending && !paletteOpen && !overlay && !tooSmall && !isTerm }
   );
 
   if (tooSmall) {
@@ -134,7 +149,12 @@ export function App() {
   const model = session?.transcript.meta.model ?? "—";
   const mode = session?.permissionMode ?? "default";
   const branch = hostStats?.branch ?? null;
-  const cwdLabel = session ? shortCwd(session.cwd) : "—";
+  // Header is tab-aware: a terminal tab labels its model "shell" and surfaces the
+  // PTY's running/exited status (good while running, dim once exited).
+  const modelLabel = terminalTab ? "shell" : model;
+  const statusLabel = terminalTab ? terminalTab.status : status;
+  const statusFg = terminalTab ? (terminalTab.status === "running" ? theme.good : theme.dim) : statusColor(status);
+  const cwdLabel = activeTab ? shortCwd(activeTab.cwd) : "—";
 
   // Pin the layout to the terminal height: header (status row + rule, +1 for zen
   // telemetry) and a 1-row footer are reserved, and the main row is capped with
@@ -155,9 +175,9 @@ export function App() {
           <TabBar />
         </Box>
         <Box>
-          <Stat label="MODEL" value={model} color={theme.accent} />
+          <Stat label="MODEL" value={modelLabel} color={theme.accent} />
           <Text color={theme.dim}> · </Text>
-          <Stat label="STATUS" value={status} color={statusColor(status)} />
+          <Stat label="STATUS" value={statusLabel} color={statusFg} />
           <Text color={theme.dim}> · </Text>
           <Text color={theme.fg}>{clock}</Text>
         </Box>
@@ -165,34 +185,43 @@ export function App() {
       <Rule width={termWidth} />
       {layout === "zen" && <TelemetryStrip />}
       <Box height={mainHeight} overflow="hidden">
-        <Box flexDirection="column" flexGrow={1}>
-          {/* Telescope overlays take the full chat column; dialogs/palette sit below the chat. */}
-          {overlay === "help" ? (
+        {/* Overlays/palette are Claude-context but take precedence over everything
+            (including a terminal tab) so the leader's g/k/r open them over a term.
+            Otherwise: a terminal tab renders the full-width TerminalPane; a Claude
+            tab renders the chat column with dialogs/palette/input below the chat. */}
+        {overlay === "help" ? (
+          <Box flexDirection="column" flexGrow={1}>
             <HelpOverlay onClose={() => store.getState().setOverlay(null)} />
-          ) : overlay === "sessions" ? (
+          </Box>
+        ) : overlay === "sessions" ? (
+          <Box flexDirection="column" flexGrow={1}>
             <SessionsOverlay onClose={() => store.getState().setOverlay(null)} />
-          ) : (
-            <>
-              <ChatPane height={chatHeight} />
-              {pending ? (
-                pending.toolName === "AskUserQuestion" ? (
-                  <QuestionDialog key={pending.id} request={pending} />
-                ) : (
-                  <PermissionDialog key={pending.id} request={pending} />
-                )
-              ) : paletteOpen ? (
-                <CommandPalette />
+          </Box>
+        ) : paletteOpen ? (
+          <Box flexDirection="column" flexGrow={1}>
+            <CommandPalette />
+          </Box>
+        ) : isTerm ? (
+          <TerminalPane height={mainHeight} onQuit={inkExit} />
+        ) : (
+          <Box flexDirection="column" flexGrow={1}>
+            <ChatPane height={chatHeight} />
+            {pending ? (
+              pending.toolName === "AskUserQuestion" ? (
+                <QuestionDialog key={pending.id} request={pending} />
               ) : (
-                <>
-                  {session?.status === "processing" && <ActivityIndicator />}
-                  <InputBar />
-                  <PillBar />
-                </>
-              )}
-            </>
-          )}
-        </Box>
-        {layout === "sidebar" && !overlay && <SidePanel />}
+                <PermissionDialog key={pending.id} request={pending} />
+              )
+            ) : (
+              <>
+                {session?.status === "processing" && <ActivityIndicator />}
+                <InputBar />
+                <PillBar />
+              </>
+            )}
+          </Box>
+        )}
+        {layout === "sidebar" && !overlay && !paletteOpen && !isTerm && <SidePanel />}
       </Box>
       {/* Footer: single dim status line, segments separated by ` · `, truncated to width */}
       <Box width={termWidth} overflow="hidden">
@@ -207,7 +236,7 @@ export function App() {
           ) : (
             ""
           )}
-          {` · MODE ${mode} · ^G help · ^Q quit · `}
+          {isTerm ? ` · Ctrl+\\ leader · ^G help · ^Q quit · ` : ` · MODE ${mode} · ^G help · ^Q quit · `}
           <Text color={theme.good}>System OK</Text>
         </Text>
       </Box>

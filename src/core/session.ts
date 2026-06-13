@@ -65,6 +65,7 @@ function lazyQuery(): QueryFn {
 }
 
 export class Session {
+  readonly kind = "claude" as const;
   readonly id: string;
   readonly cwd: string;
   title: string;
