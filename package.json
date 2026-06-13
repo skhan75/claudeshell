@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "A visual terminal shell for Claude Code — tabs, telemetry, pills, fast navigation",
   "license": "MIT",
+  "author": "Sami Ahmad Khan",
+  "repository": { "type": "git", "url": "https://github.com/skhan75/claudeshell" },
+  "bugs": "https://github.com/skhan75/claudeshell/issues",
+  "homepage": "https://github.com/skhan75/claudeshell#readme",
+  "keywords": ["claude", "claude-code", "tui", "terminal", "ink", "ai"],
   "type": "module",
   "bin": {
     "claudeshell": "dist/cli.js"
@@ -17,7 +22,8 @@
     "build": "tsc",
     "dev": "tsx src/cli.tsx",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.test.json"
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.176",
