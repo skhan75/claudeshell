@@ -70,6 +70,13 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
       desc: "Switch between the sidebar layout and the distraction-free zen layout.",
     },
     {
+      key: "explorer",
+      group: "Global",
+      binding: "Ctrl+E",
+      label: "Toggle file explorer",
+      desc: "Show/hide the left project file EXPLORER (hidden by default). It folds to top-level entries and auto-expands the folders of the file Claude is currently working in. Auto-hides on narrow terminals.",
+    },
+    {
       key: "new-session",
       group: "Global",
       binding: chord(k.newSession),

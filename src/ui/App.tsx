@@ -5,6 +5,7 @@ import { matchKey } from "./keys.js";
 import { TabBar } from "./TabBar.js";
 import { ChatPane } from "./ChatPane.js";
 import { SidePanel } from "./SidePanel.js";
+import { SidebarPanel } from "./SidebarPanel.js";
 import { TelemetryStrip } from "./TelemetryStrip.js";
 import { InputBar } from "./InputBar.js";
 import { CommandPalette } from "./CommandPalette.js";
@@ -14,7 +15,7 @@ import { BuffersOverlay } from "./BuffersOverlay.js";
 import { TerminalPane } from "./TerminalPane.js";
 import { ActivityIndicator } from "./ActivityIndicator.js";
 import { PermissionDialog, QuestionDialog } from "./dialogs.js";
-import { Rule, Stat, PILL_BG, SIDEBAR_WIDTH } from "./chrome.js";
+import { Rule, Stat, PILL_BG, SIDEBAR_WIDTH, LEFT_PANEL_WIDTH } from "./chrome.js";
 import { theme } from "./theme.js";
 import type { SessionStatus } from "../core/types.js";
 import { createRequire } from "node:module";
@@ -58,6 +59,7 @@ export function App() {
   const { exit: inkExit } = useInkApp();
   useApp((s) => s.version);
   const layout = useApp((s) => s.layout);
+  const leftPanel = useApp((s) => s.leftPanel);
   const paletteOpen = useApp((s) => s.paletteOpen);
   const overlay = useApp((s) => s.overlay);
   const hostStats = useApp((s) => s.hostStats);
@@ -110,6 +112,12 @@ export function App() {
       }
       // Ctrl+→ / Ctrl+← cycle to the next / previous tab (fast keyboard nav that
       // doesn't need the Alt modifier, which many terminals strip).
+      // Ctrl+E cycles the left IDE explorer: file tree → conversation outline →
+      // hidden → file tree (VS Code's "explorer" key; ^B/^\ are already taken).
+      if (key.ctrl && input === "e") {
+        store.getState().cycleLeftPanel();
+        return;
+      }
       if (key.ctrl && key.rightArrow) {
         manager.cycleActive(1);
         return;
@@ -181,38 +189,35 @@ export function App() {
   const statusFg = terminalTab ? (terminalTab.status === "running" ? theme.good : theme.dim) : statusColor(status);
   const cwdLabel = activeTab ? shortCwd(activeTab.cwd) : "—";
 
-  // Pin the layout to the terminal height. The whole app is wrapped in a rounded
-  // frame (the violet border), which eats 1 row/col on every side — FRAME=2. Inside
-  // that: header (status row + rule, +1 for zen telemetry) and a 1-row footer are
-  // reserved, and the main row is capped with overflow:hidden so the bordered
-  // sidebar can never push the footer off-screen. The chat area gets an explicit
-  // height (the rest goes to the input/pills block) and a frame-aware width.
+  // No outer frame: the shell fills the terminal edge-to-edge so it uses all the
+  // available width/height. Header (status row + rule, +1 for zen telemetry) and a
+  // 1-row footer are reserved; the explicit heights sum to termRows so the status
+  // bar pins to the very bottom row, and the main row is capped with overflow:hidden.
   const termRows = stdout?.rows ?? 24;
-  // Outer frame: a subtle 1-cell border in the palette's chrome color (dim — the
-  // same tint as every inner panel, so nothing clashes) plus interior padding so
-  // content breathes instead of crowding the edge.
-  const FRAME_BORDER = 2; // border cells (1 each side, both axes)
-  const FRAME_PAD_X = 2;
-  const FRAME_PAD_Y = 1;
-  const innerWidth = Math.max(1, termWidth - FRAME_BORDER - FRAME_PAD_X * 2);
+  const innerWidth = termWidth;
   const headerRows = 2 + (layout === "zen" ? 1 : 0);
   const FOOTER_ROWS = 1;
   const INPUT_AREA_ROWS = 7; // bordered input box + pills + slack for activity/suggestions
-  const mainHeight = Math.max(4, termRows - FRAME_BORDER - FRAME_PAD_Y * 2 - headerRows - FOOTER_ROWS);
+  const mainHeight = Math.max(4, termRows - headerRows - FOOTER_ROWS);
   const chatHeight = Math.max(3, mainHeight - INPUT_AREA_ROWS);
-  const chatWidth = Math.max(20, layout === "sidebar" ? innerWidth - SIDEBAR_WIDTH : innerWidth - 2);
+  // IDE columns: left explorer + chat (editor) + right inspector. The left rail
+  // only shows in the sidebar layout, when not hidden, on a Claude tab, and when
+  // the terminal is wide enough to keep the chat usable.
+  const rightCols = layout === "sidebar" ? SIDEBAR_WIDTH : 0;
+  const leftVisible = layout === "sidebar" && leftPanel !== "hidden" && !isTerm && innerWidth >= 100;
+  const leftCols = leftVisible ? LEFT_PANEL_WIDTH : 0;
+  const chatWidth = Math.max(20, layout === "sidebar" ? innerWidth - leftCols - rightCols : innerWidth - 2);
+  const leftCwd = activeTab?.cwd ?? ".";
+  const ctxFiles = session ? [...session.transcript.contextFiles] : [];
+  const lastCtx = ctxFiles[ctxFiles.length - 1];
+  const activeFile = lastCtx
+    ? lastCtx.startsWith(leftCwd + "/")
+      ? lastCtx.slice(leftCwd.length + 1)
+      : lastCtx
+    : undefined;
 
   return (
-    <Box
-      borderStyle="round"
-      borderColor={theme.dim}
-      flexDirection="column"
-      width={termWidth}
-      height={termRows}
-      paddingX={FRAME_PAD_X}
-      paddingY={FRAME_PAD_Y}
-      overflow="hidden"
-    >
+    <Box flexDirection="column" width={termWidth} height={termRows} overflow="hidden">
       {/* Header: brand + tabs on the left, holistic session status on the right */}
       <Box>
         <Box flexGrow={1}>
@@ -229,6 +234,11 @@ export function App() {
       <Rule width={innerWidth} />
       {layout === "zen" && <TelemetryStrip />}
       <Box height={mainHeight} overflow="hidden">
+        {/* Left IDE rail (explorer / outline) — first column, hidden during
+            overlays/palette/terminal so those can use the full width. */}
+        {leftVisible && session && !overlay && !paletteOpen && (
+          <SidebarPanel width={LEFT_PANEL_WIDTH} height={mainHeight} cwd={leftCwd} activeFile={activeFile} />
+        )}
         {/* Overlays/palette are Claude-context but take precedence over everything
             (including a terminal tab) so the leader's g/k/r open them over a term.
             Otherwise: a terminal tab renders the full-width TerminalPane; a Claude
@@ -278,18 +288,22 @@ export function App() {
         const cwdPad = ` ${cwdLabel} `;
         const branchStr = branch ? ` ⎇ ${branch}` : "";
         const hints = isTerm
-          ? ` · Ctrl+\\ leader · ^K cmds · ^B bufs · ^G help · ^Q quit`
-          : ` · MODE ${mode} · ^K cmds · ^B bufs · ^G help · ^Q quit`;
+          ? ` · Ctrl+\\ leader · ^K cmds · ^G help · ^Q quit`
+          : ` · MODE ${mode} · ^K cmds · ^G help · ^Q quit`;
         const badge = `✓ System OK v${VERSION}`;
-        const leftLen = idxChip.length + cwdPad.length + branchStr.length + hints.length;
-        const padLen = Math.max(1, innerWidth - leftLen - badge.length);
+        const fixedLeft = idxChip.length + cwdPad.length + branchStr.length;
+        // Reserve room for the badge so the health status never truncates; the hint
+        // list (lower priority) absorbs the squeeze on narrow terminals instead.
+        const room = Math.max(0, innerWidth - fixedLeft - badge.length - 1);
+        const hintsShown = hints.length > room ? hints.slice(0, room) : hints;
+        const padLen = Math.max(1, innerWidth - fixedLeft - hintsShown.length - badge.length);
         return (
           <Box width={innerWidth} overflow="hidden">
             <Text wrap="truncate">
               <Text color={theme.accent}>{idxChip}</Text>
               <Text backgroundColor={PILL_BG} color={theme.fg}>{cwdPad}</Text>
               {branch && <Text color={theme.purple}>{branchStr}</Text>}
-              <Text color={theme.dim}>{hints}</Text>
+              <Text color={theme.dim}>{hintsShown}</Text>
               {" ".repeat(padLen)}
               <Text color={theme.good}>{badge}</Text>
             </Text>

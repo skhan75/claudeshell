@@ -110,6 +110,19 @@ describe("App shell", () => {
     expect(ctx.store.getState().focus).toBe("scroll");
   });
 
+  it("ctrl+e toggles the file explorer (hidden by default)", async () => {
+    const ctx = makeCtx();
+    expect(ctx.store.getState().leftPanel).toBe("hidden");
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write("\x05"); // Ctrl+E
+    await tick();
+    expect(ctx.store.getState().leftPanel).toBe("files");
+    stdin.write("\x05"); // Ctrl+E again → back to hidden
+    await tick();
+    expect(ctx.store.getState().leftPanel).toBe("hidden");
+  });
+
   it("'i' key returns from scroll to input", async () => {
     const ctx = makeCtx();
     const { stdin } = renderWithCtx(<App />, ctx);

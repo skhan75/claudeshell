@@ -13,9 +13,11 @@ import { theme } from "./theme.js";
 export const PANEL_BORDER = "round" as const;
 export const PILL_BG = "#1e2738";
 export const INK_BG = "#0b0e14";
-/** Width of the right-hand SidePanel column. Centralized so the chat width, the
- *  outer app frame, and the panel itself all agree on one number. */
-export const SIDEBAR_WIDTH = 34;
+/** Width of the right-hand SidePanel column. Centralized so the chat width and the
+ *  panel itself agree on one number. */
+export const SIDEBAR_WIDTH = 38;
+/** Width of the left IDE explorer column (file tree / outline). */
+export const LEFT_PANEL_WIDTH = 32;
 /** Raised-key chip fill for keyboard-hint keycaps (a touch lighter than the app bg). */
 export const KEYCAP_BG = "#262e3f";
 /** Neutral-gray composer borders — a cool, calm "active"/"idle" pair (no blue tint),

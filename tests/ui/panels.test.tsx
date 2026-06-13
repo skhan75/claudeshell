@@ -122,6 +122,31 @@ describe("SidePanel", () => {
     expect(frame).toMatch(/MSGS\s+2/);
   });
 
+  it("lists every open session/terminal in an AGENTS section with status", () => {
+    const ctx = makeCtx();
+    ctx.manager.active!.title = "refactor parser";
+    ctx.manager.create(); // a second agent
+    ctx.manager.activate(0);
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("AGENTS");
+    expect(frame).toContain("refactor parser");
+    expect(frame).toContain("idle"); // each agent shows its status
+  });
+
+  it("surfaces a running-tools ACTIVE indicator", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    s.transcript.apply({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "ls" } }] },
+    });
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("ACTIVE");
+    expect(frame).toContain("running");
+  });
+
   it("relabels the permission mode as PERMS", () => {
     const ctx = makeCtx();
     seed(ctx);
