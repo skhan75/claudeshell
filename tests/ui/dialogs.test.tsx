@@ -158,6 +158,79 @@ describe("QuestionDialog", () => {
     await tick();
     expect(resolved).toHaveLength(1);
   });
+
+  // ── Pinning tests: malformed input must not crash ──────────────────────────
+
+  it("questions not an array ({questions:'oops'}) → auto-resolves allow with empty answers", async () => {
+    const { request, resolved } = makeRequest({
+      toolName: "AskUserQuestion",
+      input: { questions: "oops" },
+    });
+    // Must not throw during render
+    renderWithCtx(<QuestionDialog request={request} />);
+    await tick();
+    expect(resolved).toHaveLength(1);
+    const r = resolved[0] as Extract<PermissionResult, { behavior: "allow" }>;
+    expect(r.behavior).toBe("allow");
+    expect(r.updatedInput.answers).toEqual({});
+  });
+
+  it("question with options missing entirely → renders without crash, Enter submits empty string", async () => {
+    const { request, resolved } = makeRequest({
+      toolName: "AskUserQuestion",
+      input: {
+        questions: [{ question: "NoOpts?", header: "X" }], // no options field
+      },
+    });
+    const { stdin } = renderWithCtx(<QuestionDialog request={request} />);
+    await tick();
+    stdin.write("\r");
+    await tick();
+    const r = resolved[0] as Extract<PermissionResult, { behavior: "allow" }>;
+    expect((r.updatedInput.answers as Record<string, string>)["NoOpts?"]).toBe("");
+  });
+
+  it("question with options not an array (options:'x') → treated as empty, no crash, Enter submits empty string", async () => {
+    const { request, resolved } = makeRequest({
+      toolName: "AskUserQuestion",
+      input: {
+        questions: [{ question: "BadOpts?", header: "Y", options: "x" }],
+      },
+    });
+    const { stdin } = renderWithCtx(<QuestionDialog request={request} />);
+    await tick();
+    stdin.write("\r");
+    await tick();
+    const r = resolved[0] as Extract<PermissionResult, { behavior: "allow" }>;
+    expect((r.updatedInput.answers as Record<string, string>)["BadOpts?"]).toBe("");
+  });
+
+  it("question with one valid and one invalid option (invalid lacks label) → only valid option shown", async () => {
+    const { request, resolved } = makeRequest({
+      toolName: "AskUserQuestion",
+      input: {
+        questions: [
+          {
+            question: "Pick?",
+            header: "Z",
+            options: [
+              { label: "Valid" },
+              { notALabel: "bad" }, // invalid — no label
+            ],
+            multiSelect: false,
+          },
+        ],
+      },
+    });
+    const { stdin, lastFrame } = renderWithCtx(<QuestionDialog request={request} />);
+    await tick();
+    expect(lastFrame()).toContain("Valid");
+    expect(lastFrame()).not.toContain("bad");
+    stdin.write("\r"); // select the only valid option
+    await tick();
+    const r = resolved[0] as Extract<PermissionResult, { behavior: "allow" }>;
+    expect((r.updatedInput.answers as Record<string, string>)["Pick?"]).toBe("Valid");
+  });
 });
 
 describe("PermissionDialog — pinning tests", () => {

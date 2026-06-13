@@ -67,7 +67,17 @@ interface Question {
 }
 
 export function QuestionDialog({ request }: { request: PermissionRequest }) {
-  const questions = (request.input.questions as Question[] | undefined) ?? [];
+  // Defensively normalize the questions list from untrusted tool input.
+  const rawQuestions = request.input?.questions;
+  const questions: Question[] = (Array.isArray(rawQuestions) ? rawQuestions : [])
+    .filter((q) => q && typeof q === "object" && typeof q.question === "string")
+    .map((q) => ({
+      ...q,
+      options: Array.isArray(q.options)
+        ? q.options.filter((o: unknown) => o && typeof (o as { label?: unknown }).label === "string")
+        : [],
+    }));
+
   const [qi, setQi] = useState(0);
   const [sel, setSel] = useState(0);
   const [checked, setChecked] = useState<Set<number>>(new Set());
@@ -83,7 +93,14 @@ export function QuestionDialog({ request }: { request: PermissionRequest }) {
   };
 
   useEffect(() => {
-    if (!q) resolveOnce({ behavior: "allow", updatedInput: { questions, answers: {} } });
+    // Use the normalized array to decide whether to auto-resolve, but pass through
+    // the original questions field so the SDK sees what it originally sent.
+    if (!q) {
+      resolveOnce({
+        behavior: "allow",
+        updatedInput: { questions: request.input?.questions ?? [], answers: {} },
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -105,20 +122,23 @@ export function QuestionDialog({ request }: { request: PermissionRequest }) {
 
   useInput((input, key) => {
     if (!q) return;
+    // Clamp sel so a zero-option question never dereferences undefined.
+    const clampedSel = Math.min(sel, Math.max(0, q.options.length - 1));
     if (free !== null) {
-      if (key.return) submit(free.trim() || (q.options[sel]?.label ?? ""));
+      if (key.return) submit(free.trim() || (q.options[clampedSel]?.label ?? ""));
       else if (key.escape) setFree(null);
       else if (key.backspace || key.delete) setFree((f) => (f ?? "").slice(0, -1));
       else if (input && !key.ctrl && !key.meta) setFree((f) => (f ?? "") + input);
       return;
     }
     if (key.upArrow || input === "k") setSel((s) => Math.max(0, s - 1));
-    else if (key.downArrow || input === "j") setSel((s) => Math.min(q.options.length - 1, s + 1));
+    else if (key.downArrow || input === "j")
+      setSel((s) => Math.min(Math.max(0, q.options.length - 1), s + 1));
     else if (input === " " && q.multiSelect) {
       setChecked((c) => {
         const n = new Set(c);
-        if (n.has(sel)) n.delete(sel);
-        else n.add(sel);
+        if (n.has(clampedSel)) n.delete(clampedSel);
+        else n.add(clampedSel);
         return n;
       });
     } else if (input === "o") setFree("");
@@ -126,7 +146,8 @@ export function QuestionDialog({ request }: { request: PermissionRequest }) {
       if (q.multiSelect && checked.size > 0) {
         submit([...checked].sort((a, b) => a - b).map((i) => q.options[i].label).join(", "));
       } else {
-        submit(q.options[sel]?.label ?? "");
+        // Zero-option question: submit empty string rather than dereferencing undefined.
+        submit(q.options[clampedSel]?.label ?? "");
       }
     }
   });
