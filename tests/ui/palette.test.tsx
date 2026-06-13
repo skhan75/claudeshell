@@ -28,6 +28,16 @@ describe("buildPaletteItems", () => {
     const labels = buildPaletteItems(ctx).map((i) => i.label);
     expect(labels).toContain("model: claude-opus-4-8");
   });
+
+  it("only advertises alt+digit hints for the first 9 tabs", () => {
+    const ctx = makeCtx();
+    for (let i = 0; i < 10; i++) ctx.manager.create(); // 11 sessions total (1 from makeCtx)
+    const switchItems = buildPaletteItems(ctx).filter((i) => i.label.startsWith("switch:"));
+    expect(switchItems).toHaveLength(11);
+    expect(switchItems[8].hint).toBe("alt+9");
+    expect(switchItems[9].hint).toBeUndefined();
+    expect(switchItems[10].hint).toBeUndefined();
+  });
 });
 
 describe("CommandPalette", () => {

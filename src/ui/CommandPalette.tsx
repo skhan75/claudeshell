@@ -19,7 +19,8 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
   const items: PaletteItem[] = [];
 
   manager.sessions.forEach((s, i) => {
-    items.push({ label: `switch: ${s.title}`, hint: `alt+${i + 1}`, run: () => manager.activate(i) });
+    // Only tabs 1-9 have an alt+digit shortcut (App handles /^[1-9]$/); omit the hint beyond that.
+    items.push({ label: `switch: ${s.title}`, hint: i < 9 ? `alt+${i + 1}` : undefined, run: () => manager.activate(i) });
   });
 
   items.push({ label: "action: new session", run: () => void manager.create() });

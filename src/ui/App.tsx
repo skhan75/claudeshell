@@ -30,6 +30,8 @@ export function App() {
     };
   }, [stdout, store]);
 
+  const tooSmall = (stdout?.columns ?? 80) < 60 || (stdout?.rows ?? 24) < 14;
+
   useInput(
     (input, key) => {
       if (session?.status === "crashed" && input === "r") {
@@ -48,15 +50,24 @@ export function App() {
         return;
       }
       if (matchKey(config.keys.focusToggle, input, key)) {
-        st.setFocus(st.focus === "input" ? "scroll" : "input");
+        // FIX 1: esc only transitions input->scroll to avoid double-fire with ChatPane.
+        // When focus is already scroll, ChatPane owns esc (clear search).
+        if (st.focus === "input") {
+          st.setFocus("scroll");
+        }
+        return;
+      }
+      // FIX 1: 'i' returns from scroll back to input, avoiding esc collision with ChatPane.
+      if (input === "i" && st.focus === "scroll") {
+        st.setFocus("input");
         return;
       }
       if ((key.meta ?? false) && /^[1-9]$/.test(input)) manager.activate(Number(input) - 1);
     },
-    { isActive: !pending && !paletteOpen }
+    { isActive: !pending && !paletteOpen && !tooSmall }
   );
 
-  if ((stdout?.columns ?? 80) < 60 || (stdout?.rows ?? 24) < 14) {
+  if (tooSmall) {
     return <Text color="yellow">terminal too small for claudeshell — resize to at least 60×14</Text>;
   }
 
