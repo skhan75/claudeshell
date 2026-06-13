@@ -49,6 +49,44 @@ describe("SidePanel", () => {
     expect(frame).toContain("mbp-sami");
     expect(frame).toContain("feature/mcp");
   });
+
+  it("shows the configured default model before the first turn (no SDK init yet)", () => {
+    const ctx = makeCtx();
+    // No transcript.apply at all — meta.model is undefined. The panel must fall
+    // back to the user's primary configured model (config.models[0]).
+    expect(ctx.config.models[0]).toBe("claude-opus-4-8");
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("claude-opus-4-8");
+    expect(frame).not.toContain("MODEL  —");
+  });
+
+  it("shows a TAB n/total line and a MSGS count", () => {
+    const ctx = makeCtx();
+    // Open a second tab so total is 2; activate the first so we read TAB 1/2.
+    ctx.manager.create();
+    ctx.manager.activate(0);
+    const s = ctx.manager.active!;
+    // Two user/assistant blocks → MSGS 2 (tool/info/thinking blocks excluded).
+    s.transcript.addUser("hello");
+    s.transcript.apply({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "hi" }], usage: { input_tokens: 10, output_tokens: 2 } },
+    });
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("1/2");
+    expect(frame).toContain("MSGS");
+    expect(frame).toMatch(/MSGS\s+2/);
+  });
+
+  it("relabels the permission mode as PERMS", () => {
+    const ctx = makeCtx();
+    seed(ctx);
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("PERMS");
+    expect(frame).toContain("default");
+    expect(frame).not.toContain("MODE ");
+  });
 });
 
 describe("TelemetryStrip", () => {
@@ -118,7 +156,9 @@ describe("SidePanel edge cases", () => {
     const ctx = makeCtx();
     const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
     expect(frame).toContain("(no files yet)");
-    expect(frame).toContain("MODEL  —");
+    // Fresh session shows the configured default model, not a placeholder dash.
+    expect(frame).toContain("claude-opus-4-8");
+    expect(frame).not.toContain("MODEL  —");
     expect(frame).toContain("0%");
   });
   it("clamps the context percent label at 100", () => {
