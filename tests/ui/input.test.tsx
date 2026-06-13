@@ -3,9 +3,7 @@ import React from "react";
 import { cleanup as cleanupInk } from "ink-testing-library";
 import { InputBar } from "../../src/ui/InputBar.js";
 import { PillBar } from "../../src/ui/PillBar.js";
-import { renderWithCtx, makeCtx } from "./helpers.js";
-
-const tick = () => new Promise<void>((r) => setImmediate(r));
+import { renderWithCtx, makeCtx, tick } from "./helpers.js";
 
 afterEach(cleanupInk);
 
@@ -45,6 +43,32 @@ describe("InputBar", () => {
     stdin.write("\t");
     await tick();
     expect(ctx.store.getState().focus).toBe("pills");
+  });
+
+  it("ranks slash prefix matches first (slash excluded from scoring)", async () => {
+    const ctx = makeCtx();
+    ctx.manager.active!.transcript.apply({
+      type: "system", subtype: "init", slash_commands: ["/xcom", "/commit"],
+    });
+    ctx.store.getState().bump();
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("/com");
+    await tick();
+    const frame = lastFrame()!;
+    expect(frame.indexOf("/commit")).toBeLessThan(frame.indexOf("/xcom"));
+  });
+
+  it("tab on bare @ does not autocomplete blindly", async () => {
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("read @");
+    await tick();
+    stdin.write("\t");
+    await tick();
+    expect(lastFrame()).toContain("❯ read @");
+    expect(lastFrame()).not.toContain("@."); // no surprise first-file completion
   });
 });
 

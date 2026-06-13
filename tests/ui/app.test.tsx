@@ -1,9 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import React from "react";
 import { App } from "../../src/ui/App.js";
-import { renderWithCtx, makeCtx, cleanupInk } from "./helpers.js";
-
-const tick = () => new Promise<void>((r) => setImmediate(r));
+import { renderWithCtx, makeCtx, cleanupInk, tick } from "./helpers.js";
 
 describe("App shell", () => {
   afterEach(cleanupInk);

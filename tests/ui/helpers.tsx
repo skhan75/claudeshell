@@ -9,6 +9,8 @@ import { SessionManager } from "../../src/core/session-manager.js";
 import { loadConfig } from "../../src/core/config.js";
 import type { QueryFn } from "../../src/core/types.js";
 
+export const tick = () => new Promise<void>((r) => setImmediate(r));
+
 export const noopQuery: QueryFn = ({ prompt }) => {
   async function* gen() {
     for await (const _ of prompt) return;

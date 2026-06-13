@@ -3,7 +3,7 @@ import { Box, Text, useInput } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
 import { fuzzyFilter } from "../core/fuzzy.js";
-import { listProjectFiles } from "../core/files.js";
+import { listProjectFilesCached } from "../core/files.js";
 
 export function InputBar() {
   const { manager, store } = useAppCtx();
@@ -18,7 +18,7 @@ export function InputBar() {
   );
   const suggestions =
     text.startsWith("/") && !text.includes(" ")
-      ? fuzzyFilter(slashCommands, text.slice(1), (c) => c).slice(0, 5)
+      ? fuzzyFilter(slashCommands, text.slice(1), (c) => c.slice(1)).slice(0, 5)
       : [];
 
   const isActive = focus === "input" && !paletteOpen && !manager.active?.pendingPermission;
@@ -42,8 +42,8 @@ export function InputBar() {
         }
         const words = text.split(" ");
         const lastWord = words[words.length - 1];
-        if (lastWord.startsWith("@") && session) {
-          const matches = fuzzyFilter(listProjectFiles(session.cwd), lastWord.slice(1), (f) => f);
+        if (lastWord.startsWith("@") && lastWord.length > 1 && session) {
+          const matches = fuzzyFilter(listProjectFilesCached(session.cwd), lastWord.slice(1), (f) => f);
           if (matches.length > 0) {
             words[words.length - 1] = "@" + matches[0];
             setText(words.join(" ") + " ");

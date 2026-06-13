@@ -23,7 +23,8 @@ export function PillBar() {
       if (key.leftArrow) setSel((s) => Math.max(0, s - 1));
       else if (key.rightArrow) setSel((s) => Math.min(config.pills.length - 1, s + 1));
       else if (key.return) {
-        const p = config.pills[sel];
+        const p = config.pills[Math.min(sel, config.pills.length - 1)];
+        if (!p) return;
         const payload = p.slash ?? p.prompt;
         if (payload) session?.send(payload);
         store.getState().setFocus("input");

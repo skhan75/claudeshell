@@ -1,11 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import React from "react";
 import { ChatPane, wrapText } from "../../src/ui/ChatPane.js";
-import { renderWithCtx, makeCtx, cleanupInk } from "./helpers.js";
+import { renderWithCtx, makeCtx, cleanupInk, tick } from "./helpers.js";
 
 afterEach(cleanupInk);
-
-const tick = () => new Promise<void>((r) => setImmediate(r));
 
 function seed(ctx: ReturnType<typeof makeCtx>) {
   const s = ctx.manager.active!;

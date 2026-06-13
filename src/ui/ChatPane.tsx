@@ -58,6 +58,7 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
 
   const cols = stdout?.columns ?? 80;
   const width = Math.max(20, layout === "sidebar" ? cols - 32 : cols - 2);
+  // rows - 8 ≈ chrome: tab bar + input + pills + paddings; suggestion row makes it 9 (bottom row may clip on very short terminals — acceptable v1)
   const height = heightProp ?? Math.max(6, (stdout?.rows ?? 24) - 8);
 
   const [offset, setOffset] = useState(0); // lines scrolled up from bottom
