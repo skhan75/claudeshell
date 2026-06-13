@@ -78,6 +78,7 @@ export class Session {
 
   private permissionBacklog: PermissionRequest[] = [];
   private interrupted = false;
+  private started = false;
   private queue: AsyncQueue<unknown> | null = null;
   private handle: QueryHandle | null = null;
   private queryFn: QueryFn;
@@ -107,10 +108,11 @@ export class Session {
       this.title = text.length > 24 ? text.slice(0, 23) + "…" : text;
       this.titled = true;
     }
+    // Open the query if it isn't already (eager warmup may have done this).
+    this.ensureStarted();
     this.transcript.addUser(text);
     this.status = "processing";
     this.turnStartedAt = Date.now();
-    if (!this.queue) this.start();
     this.queue!.push({
       type: "user",
       message: { role: "user", content: text },
@@ -119,7 +121,19 @@ export class Session {
     this.onChange();
   }
 
+  /**
+   * Open the SDK query eagerly so the system `init` message (model, slash
+   * commands, MCP servers) arrives before the first prompt. Opening the query
+   * is NOT a turn: status stays whatever it was (idle on a fresh tab), no
+   * prompt is pushed, so there is no model call, no tokens, no cost. Idempotent.
+   */
+  ensureStarted(): void {
+    if (!this.started && this.status !== "crashed") this.start();
+  }
+
   private start(): void {
+    if (this.started) return;
+    this.started = true;
     this.queue = new AsyncQueue<unknown>();
     const options: Record<string, unknown> = {
       cwd: this.cwd,
@@ -151,6 +165,8 @@ export class Session {
       this.turnStartedAt = null;
       this.error = err instanceof Error ? err.message : String(err);
       this.transcript.addInfo(`✖ session crashed: ${this.error} — press r to resume`);
+      // Allow a later ensureStarted()/resume() to reconnect.
+      this.started = false;
       this.queue = null;
       this.handle = null;
       // dialogs can never be answered on a dead stream
@@ -248,6 +264,7 @@ export class Session {
     if (this.status !== "crashed") return;
     this.status = "idle";
     this.error = null;
+    this.started = false;
     this.queue = null;
     this.handle = null;
     this.onChange();

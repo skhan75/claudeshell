@@ -292,6 +292,51 @@ describe("Session", () => {
     expect(() => s.dispose()).not.toThrow();
   });
 
+  it("ensureStarted() warms the query: init meta lands before any send, status stays idle", async () => {
+    const queryFn: QueryFn = ({ prompt }) => {
+      async function* gen(): AsyncGenerator<SdkMessage> {
+        // init arrives immediately — before awaiting any prompt (the warmup handshake).
+        yield {
+          type: "system",
+          subtype: "init",
+          session_id: "x",
+          model: "claude-opus-4-8",
+          slash_commands: ["/clear", "/model"],
+          mcp_servers: [{ name: "vibedrift", status: "connected" }],
+        } as SdkMessage;
+        // then wait for a prompt (none comes in this test)
+        for await (const _ of prompt) return;
+      }
+      return gen();
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.ensureStarted();
+    await vi.waitFor(() => expect(s.transcript.meta.slashCommands).toContain("/clear"));
+    expect(s.transcript.meta.model).toBe("claude-opus-4-8");
+    expect(s.transcript.meta.mcpServers).toEqual([{ name: "vibedrift", status: "connected" }]);
+    // Warmup is not a turn — no prompt was sent, so status remains idle (no cost).
+    expect(s.status).toBe("idle");
+    expect(s.turnStartedAt).toBeNull();
+  });
+
+  it("ensureStarted() is idempotent — opens the query exactly once", async () => {
+    const queryFn = vi.fn<QueryFn>(({ prompt }) => {
+      async function* gen(): AsyncGenerator<SdkMessage> {
+        for await (const _ of prompt) return;
+      }
+      return gen();
+    });
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn });
+    s.ensureStarted();
+    s.ensureStarted();
+    s.ensureStarted();
+    expect(queryFn).toHaveBeenCalledOnce();
+    // A subsequent send() must also not reopen the query.
+    s.send("hello");
+    expect(queryFn).toHaveBeenCalledOnce();
+    expect(s.status).toBe("processing");
+  });
+
   it("turnStartedAt is a number after send() and null after a result message arrives", async () => {
     const s = new Session({
       id: "s1", cwd: "/tmp",

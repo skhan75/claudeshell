@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -180,6 +180,39 @@ describe("SessionManager", () => {
     expect(m.tabs.some((t) => t.id === spy.id)).toBe(false);
     // The other terminal is unaffected.
     expect(m.tabs.some((t) => t.id === term.id)).toBe(true);
+  });
+
+  // --- Eager warmup: tabs connect their query before the first prompt ---
+
+  it("create() eagerly warms the active session (query opens once, no prompt sent)", () => {
+    const queryFn = vi.fn<QueryFn>(({ prompt }) => {
+      async function* gen() {
+        for await (const _ of prompt) return;
+      }
+      return gen();
+    });
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn });
+    m.create();
+    // The new tab's query was opened eagerly (no send() needed).
+    expect(queryFn).toHaveBeenCalledOnce();
+    // Warmup is not a turn — the freshly created session stays idle.
+    expect(m.active?.status).toBe("idle");
+  });
+
+  it("activate() warms a not-yet-viewed tab the first time it becomes active", () => {
+    const queryFn = vi.fn<QueryFn>(({ prompt }) => {
+      async function* gen() {
+        for await (const _ of prompt) return;
+      }
+      return gen();
+    });
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn });
+    m.create(); // a — warmed (call 1)
+    m.create(); // b — warmed (call 2), now active
+    expect(queryFn).toHaveBeenCalledTimes(2);
+    // Re-activating an already-warmed tab does not reopen its query.
+    m.activate(0);
+    expect(queryFn).toHaveBeenCalledTimes(2);
   });
 
   // --- Pinning regression tests for review fixes ---

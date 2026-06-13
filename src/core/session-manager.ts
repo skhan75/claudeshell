@@ -57,6 +57,8 @@ export class SessionManager {
     this.tabs.push(session);
     this.activeIndex = this.tabs.length - 1;
     this.notify();
+    // Warm the new tab eagerly so init data (model/slash/MCP) is ready.
+    this.active?.ensureStarted();
     return session;
   }
 
@@ -80,6 +82,8 @@ export class SessionManager {
     if (index >= 0 && index < this.tabs.length) {
       this.activeIndex = index;
       this.notify();
+      // Warm a Claude tab the first time it is viewed (idempotent for started tabs).
+      this.active?.ensureStarted();
     }
   }
 
@@ -140,6 +144,8 @@ export class SessionManager {
     }
     if (this.tabs.length === 0) this.create();
     this.notify();
+    // Warm only the active restored tab; the rest warm on activation.
+    this.active?.ensureStarted();
   }
 
   dispose(): void {
