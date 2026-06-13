@@ -32,6 +32,8 @@ export type PermissionResult =
   | { behavior: "deny"; message: string };
 
 export interface PermissionRequest {
+  /** Stable per-request identity — UI keys dialogs on this. */
+  id: string;
   toolName: string;
   input: Record<string, unknown>;
   suggestions: Array<{ destination?: string } & Record<string, unknown>>;

@@ -52,9 +52,9 @@ export function App() {
           <ChatPane />
           {pending ? (
             pending.toolName === "AskUserQuestion" ? (
-              <QuestionDialog request={pending} />
+              <QuestionDialog key={pending.id} request={pending} />
             ) : (
-              <PermissionDialog request={pending} />
+              <PermissionDialog key={pending.id} request={pending} />
             )
           ) : paletteOpen ? (
             <CommandPalette />

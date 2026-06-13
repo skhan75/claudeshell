@@ -9,6 +9,7 @@ afterEach(cleanupInk);
 function makeRequest(over: Partial<PermissionRequest> = {}) {
   const resolved: PermissionResult[] = [];
   const request: PermissionRequest = {
+    id: "perm-test",
     toolName: "Bash",
     input: { command: "rm -rf /tmp/x" },
     suggestions: [
@@ -110,5 +111,75 @@ describe("QuestionDialog", () => {
     await tick();
     const r = resolved[0] as Extract<PermissionResult, { behavior: "allow" }>;
     expect((r.updatedInput.answers as Record<string, string>)["Which sections?"]).toBe("Intro, Body");
+  });
+
+  it("a second request gets a fresh dialog (keyed remount, no stale state)", async () => {
+    // simulate App's keyed rendering with two sequential requests
+    const first = makeRequest({
+      toolName: "AskUserQuestion",
+      input: { questions: [{ question: "Q1?", header: "A", options: [{ label: "x" }, { label: "y" }], multiSelect: false }] },
+    });
+    (first.request as { id: string }).id = "perm-1";
+    const second = makeRequest({
+      toolName: "AskUserQuestion",
+      input: { questions: [{ question: "Q2?", header: "B", options: [{ label: "p" }, { label: "q" }], multiSelect: false }] },
+    });
+    (second.request as { id: string }).id = "perm-2";
+
+    const r1 = renderWithCtx(<QuestionDialog key={first.request.id} request={first.request} />);
+    await tick();
+    r1.stdin.write("j");
+    await tick();
+    r1.rerender(<QuestionDialog key={second.request.id} request={second.request} />);
+    await tick();
+    expect(r1.lastFrame()).toContain("Q2?");
+    r1.stdin.write("\r"); // selection must be reset to index 0 → "p"
+    await tick();
+    const resolved = second.resolved[0] as Extract<PermissionResult, { behavior: "allow" }>;
+    expect((resolved.updatedInput.answers as Record<string, string>)["Q2?"]).toBe("p");
+  });
+
+  it("does not crash on a zero-option question", async () => {
+    const { request, resolved } = makeRequest({
+      toolName: "AskUserQuestion",
+      input: { questions: [{ question: "Empty?", header: "E", options: [], multiSelect: false }] },
+    });
+    const { stdin } = renderWithCtx(<QuestionDialog request={request} />);
+    await tick();
+    stdin.write("\r");
+    await tick();
+    const r = resolved[0] as Extract<PermissionResult, { behavior: "allow" }>;
+    expect((r.updatedInput.answers as Record<string, string>)["Empty?"]).toBe("");
+  });
+
+  it("resolves empty-questions requests automatically", async () => {
+    const { request, resolved } = makeRequest({ toolName: "AskUserQuestion", input: { questions: [] } });
+    renderWithCtx(<QuestionDialog request={request} />);
+    await tick();
+    expect(resolved).toHaveLength(1);
+  });
+});
+
+describe("PermissionDialog — pinning tests", () => {
+  it("trigger characters are typable inside a deny reason", async () => {
+    const { request, resolved } = makeRequest();
+    const { stdin } = renderWithCtx(<PermissionDialog request={request} />);
+    await tick();
+    stdin.write("n");
+    await tick();
+    stdin.write("yo nano");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(resolved[0]).toMatchObject({ behavior: "deny", message: "yo nano" });
+  });
+
+  it("rapid double-keys resolve exactly once", async () => {
+    const { request, resolved } = makeRequest();
+    const { stdin } = renderWithCtx(<PermissionDialog request={request} />);
+    await tick();
+    stdin.write("yy"); // two keys in one chunk, no tick between
+    await tick();
+    expect(resolved).toHaveLength(1);
   });
 });

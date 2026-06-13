@@ -4,6 +4,8 @@ import type {
   PermissionRequest, PermissionResult, QueryFn, QueryHandle, SdkMessage, SessionStatus,
 } from "./types.js";
 
+let permissionSeq = 0;
+
 export interface SessionOpts {
   id: string;
   cwd: string;
@@ -170,6 +172,7 @@ export class Session {
       }
       let settled = false;
       const request: PermissionRequest = {
+        id: `perm-${++permissionSeq}`,
         toolName,
         input,
         suggestions,

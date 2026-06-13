@@ -1,38 +1,47 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { theme } from "./theme.js";
-import type { PermissionRequest } from "../core/types.js";
+import type { PermissionRequest, PermissionResult } from "../core/types.js";
 
 function inputPreview(input: Record<string, unknown>): string {
-  if (typeof input.command === "string") return input.command;
-  if (typeof input.file_path === "string") return String(input.file_path);
-  const s = JSON.stringify(input);
-  return s.length > 120 ? s.slice(0, 117) + "…" : s;
+  const clamp = (s: string) => (s.length > 120 ? s.slice(0, 117) + "…" : s);
+  if (typeof input.command === "string") return clamp(input.command);
+  if (typeof input.file_path === "string") return clamp(String(input.file_path));
+  return clamp(JSON.stringify(input));
 }
 
 export function PermissionDialog({ request }: { request: PermissionRequest }) {
   const [denying, setDenying] = useState(false);
   const [reason, setReason] = useState("");
+  const done = useRef(false);
+
+  const resolveOnce = (r: PermissionResult) => {
+    if (done.current) return;
+    done.current = true;
+    request.resolve(r);
+  };
 
   useInput((input, key) => {
     if (denying) {
       if (key.return) {
-        request.resolve({ behavior: "deny", message: reason.trim() || "User denied this action" });
+        resolveOnce({ behavior: "deny", message: reason.trim() || "User denied this action" });
       } else if (key.escape) setDenying(false);
       else if (key.backspace || key.delete) setReason((r) => r.slice(0, -1));
       else if (input && !key.ctrl && !key.meta) setReason((r) => r + input);
       return;
     }
-    if (input === "y") {
-      request.resolve({ behavior: "allow", updatedInput: request.input });
-    } else if (input === "a") {
+    // Use input[0] so that rapid double-key batches (e.g. "yy") still trigger once.
+    const ch = input[0];
+    if (ch === "y") {
+      resolveOnce({ behavior: "allow", updatedInput: request.input });
+    } else if (ch === "a") {
       const persist = request.suggestions.filter((s) => s.destination === "localSettings");
-      request.resolve({
+      resolveOnce({
         behavior: "allow",
         updatedInput: request.input,
         updatedPermissions: (persist.length > 0 ? persist : request.suggestions) as unknown[],
       });
-    } else if (input === "n") {
+    } else if (ch === "n" && input.length === 1) {
       setDenying(true);
     }
   });
@@ -67,9 +76,16 @@ export function QuestionDialog({ request }: { request: PermissionRequest }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [free, setFree] = useState<string | null>(null);
   const q: Question | undefined = questions[qi];
+  const done = useRef(false);
+
+  const resolveOnce = (r: PermissionResult) => {
+    if (done.current) return;
+    done.current = true;
+    request.resolve(r);
+  };
 
   useEffect(() => {
-    if (!q) request.resolve({ behavior: "allow", updatedInput: { questions, answers: {} } });
+    if (!q) resolveOnce({ behavior: "allow", updatedInput: { questions, answers: {} } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -82,7 +98,7 @@ export function QuestionDialog({ request }: { request: PermissionRequest }) {
       setChecked(new Set());
       setFree(null);
     } else {
-      request.resolve({
+      resolveOnce({
         behavior: "allow",
         updatedInput: { questions: request.input.questions, answers: next },
       });
@@ -92,7 +108,7 @@ export function QuestionDialog({ request }: { request: PermissionRequest }) {
   useInput((input, key) => {
     if (!q) return;
     if (free !== null) {
-      if (key.return) submit(free.trim() || q.options[sel]?.label || "");
+      if (key.return) submit(free.trim() || (q.options[sel]?.label ?? ""));
       else if (key.escape) setFree(null);
       else if (key.backspace || key.delete) setFree((f) => (f ?? "").slice(0, -1));
       else if (input && !key.ctrl && !key.meta) setFree((f) => (f ?? "") + input);
@@ -112,7 +128,7 @@ export function QuestionDialog({ request }: { request: PermissionRequest }) {
       if (q.multiSelect && checked.size > 0) {
         submit([...checked].sort((a, b) => a - b).map((i) => q.options[i].label).join(", "));
       } else {
-        submit(q.options[sel].label);
+        submit(q.options[sel]?.label ?? "");
       }
     }
   });
@@ -125,7 +141,7 @@ export function QuestionDialog({ request }: { request: PermissionRequest }) {
         ? {q.header ? `${q.header}: ` : ""}{q.question} <Text dimColor>({qi + 1}/{questions.length})</Text>
       </Text>
       {q.options.map((o, i) => (
-        <Text key={o.label} color={i === sel ? theme.accent : theme.fg} inverse={i === sel}>
+        <Text key={`${i}-${o.label}`} color={i === sel ? theme.accent : theme.fg} inverse={i === sel}>
           {q.multiSelect ? (checked.has(i) ? "[x] " : "[ ] ") : i === sel ? "❯ " : "  "}
           {o.label}
           {o.description ? <Text dimColor> — {o.description}</Text> : null}
