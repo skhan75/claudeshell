@@ -219,8 +219,14 @@ export function SidePanel({ height }: { height?: number } = {}) {
       <Box flexDirection="column">
         <SectionHeader label="USAGE" width={CONTENT_WIDTH} />
         <Row label="MSGS" value={`${msgCount} · ${u.turns} turns · ${toolCount} tools`} />
-        <Row label="ACTIVE" value={runningTools > 0 ? `${runningTools} running` : "idle"} color={runningTools > 0 ? theme.warn : theme.dim} />
+        {(() => {
+          const queued = s.queuedCount;
+          const label = queued > 0 ? `${queued} queued` : runningTools > 0 ? `${runningTools} running` : s.status === "processing" ? "working…" : "idle";
+          const color = queued > 0 || runningTools > 0 || s.status === "processing" ? theme.warn : theme.dim;
+          return <Row label="ACTIVE" value={label} color={color} />;
+        })()}
         <Row label="TOKENS" value={`${fmtK(u.inputTokens)} in · ${fmtK(u.outputTokens)} out`} />
+        <Row label="CACHE" value={`${fmtK(u.cacheReadTokens)} read`} color={theme.accent} />
         <Row label="COST" value={`${fmtUsd(u.costUsd)} total`} color={theme.good} />
         <Row label="INFER" value={`${fmtUsd(u.lastTurnCostUsd)} last turn`} color={theme.warn} />
 

@@ -24,10 +24,11 @@ describe("App shell", () => {
     expect(lastFrame()).toContain("1:new session");
   });
 
-  it("renders the header status block (MODEL + STATUS + clock)", () => {
+  it("renders the header status block (STATUS + clock)", () => {
     const { lastFrame } = renderWithCtx(<App />);
     const frame = lastFrame()!;
-    expect(frame).toContain("MODEL");
+    // The header is compact (STATUS + clock) beside the tabs; MODEL moved to the
+    // inspector/composer so the header fits next to the full-height side panel.
     expect(frame).toContain("STATUS");
     // idle status is shown for a fresh session
     expect(frame).toContain("idle");

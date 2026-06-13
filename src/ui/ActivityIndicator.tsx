@@ -42,7 +42,8 @@ export function ActivityIndicator() {
       <Text color={theme.dim}>
         {" "}
         · {elapsed}s
-        {thinking ? ` · ${thinkingTokens} tok` : ""} · esc to interrupt
+        {thinking ? ` · ${thinkingTokens} tok` : ""}
+        {session.queuedCount > 0 ? ` · ${session.queuedCount} queued` : ""} · esc to interrupt
       </Text>
     </Box>
   );

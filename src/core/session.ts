@@ -71,6 +71,8 @@ export class Session {
   title: string;
   status: SessionStatus = "idle";
   turnStartedAt: number | null = null;
+  /** Messages submitted while a turn was already running, waiting their turn. */
+  queuedCount = 0;
   transcript = new Transcript();
   pendingPermission: PermissionRequest | null = null;
   error: string | null = null;
@@ -103,6 +105,9 @@ export class Session {
 
   send(text: string): void {
     if (this.status === "crashed") return;
+    // Sending while a turn is already running queues the message (Claude's streaming
+    // input processes it after the current turn); track the backlog for the UI.
+    const wasProcessing = this.status === "processing";
     this.interrupted = false;
     if (!this.titled) {
       this.title = text.length > 24 ? text.slice(0, 23) + "…" : text;
@@ -111,6 +116,7 @@ export class Session {
     // Open the query if it isn't already (eager warmup may have done this).
     this.ensureStarted();
     this.transcript.addUser(text);
+    if (wasProcessing) this.queuedCount++;
     this.status = "processing";
     this.turnStartedAt = Date.now();
     this.queue!.push({
@@ -163,6 +169,7 @@ export class Session {
     } catch (err) {
       this.status = "crashed";
       this.turnStartedAt = null;
+      this.queuedCount = 0;
       this.error = err instanceof Error ? err.message : String(err);
       this.transcript.addInfo(`✖ session crashed: ${this.error} — press r to resume`);
       // Allow a later ensureStarted()/resume() to reconnect.
@@ -179,8 +186,10 @@ export class Session {
     this.transcript.apply(msg);
     if (msg.type === "system" && msg.subtype === "init" && msg.session_id) this.claudeId = msg.session_id;
     if (msg.type === "result") {
-      this.status = "idle";
-      this.turnStartedAt = null;
+      // A turn finished; the next queued message (if any) begins processing.
+      if (this.queuedCount > 0) this.queuedCount--;
+      this.status = this.queuedCount > 0 ? "processing" : "idle";
+      this.turnStartedAt = this.queuedCount > 0 ? Date.now() : null;
       this.interrupted = false;
     }
   }
@@ -240,6 +249,7 @@ export class Session {
 
   async interrupt(): Promise<void> {
     this.interrupted = true;
+    this.queuedCount = 0; // interrupting drops anything still queued
     this.drainPermissions("session interrupted");
     await this.handle?.interrupt?.();
     this.status = "idle";

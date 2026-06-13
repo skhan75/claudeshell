@@ -35,6 +35,20 @@ describe("Session", () => {
     expect(s.transcript.usage.costUsd).toBeCloseTo(0.01);
   });
 
+  it("queues messages sent while a turn is already processing", () => {
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn: scriptedQuery([]) });
+    s.send("first");
+    expect(s.status).toBe("processing");
+    expect(s.queuedCount).toBe(0); // the first message is in-flight, not queued
+    s.send("second"); // sent while processing → queued
+    s.send("third");
+    expect(s.queuedCount).toBe(2);
+    // Every prompt still reached the transcript (nothing dropped).
+    expect(s.transcript.blocks.filter((b) => b.kind === "user")).toHaveLength(3);
+    void s.interrupt();
+    expect(s.queuedCount).toBe(0); // interrupting clears the queue
+  });
+
   it("passes daily-driver options to the SDK (settingSources, claude_code preset, partials)", async () => {
     const capture: { options?: Record<string, unknown> } = {};
     const s = new Session({ id: "s1", cwd: "/repo", queryFn: scriptedQuery([{ type: "result", subtype: "success" }], capture) });
