@@ -11,7 +11,7 @@ npm install -g claudeshell
 cd your-project && claudeshell
 ```
 
-Requires Node ≥ 18 and a logged-in Claude Code (`claude` then `/login`), or
+Requires Node ≥ 20 and a logged-in Claude Code (`claude` then `/login`), or
 `ANTHROPIC_API_KEY`.
 
 ## Keys
