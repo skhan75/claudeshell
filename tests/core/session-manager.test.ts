@@ -41,6 +41,32 @@ describe("SessionManager", () => {
     expect(m.active?.id).toBe(b.id);
   });
 
+  it("cycleActive moves to the next/previous tab and wraps around both ends", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    const a = m.create();
+    const b = m.create();
+    const c = m.create(); // c active (index 2)
+    expect(m.active?.id).toBe(c.id);
+
+    m.cycleActive(1); // wrap forward 2 -> 0
+    expect(m.active?.id).toBe(a.id);
+    m.cycleActive(1); // 0 -> 1
+    expect(m.active?.id).toBe(b.id);
+    m.cycleActive(-1); // 1 -> 0
+    expect(m.active?.id).toBe(a.id);
+    m.cycleActive(-1); // wrap backward 0 -> 2
+    expect(m.active?.id).toBe(c.id);
+  });
+
+  it("cycleActive is a no-op with a single tab and never throws on zero tabs", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    const only = m.create();
+    m.cycleActive(1);
+    expect(m.active?.id).toBe(only.id);
+    m.cycleActive(-1);
+    expect(m.active?.id).toBe(only.id);
+  });
+
   it("notifies subscribers on changes", () => {
     const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
     let ticks = 0;

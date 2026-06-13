@@ -1,7 +1,7 @@
 export type TranscriptBlock =
-  | { kind: "user"; text: string }
-  | { kind: "assistant"; text: string; streaming: boolean }
-  | { kind: "thinking"; text: string; streaming: boolean }
+  | { kind: "user"; text: string; ts?: number }
+  | { kind: "assistant"; text: string; streaming: boolean; ts?: number }
+  | { kind: "thinking"; text: string; streaming: boolean; ts?: number }
   | { kind: "tool"; name: string; detail: string; status: "running" | "done"; id?: string }
   | { kind: "info"; text: string };
 
@@ -10,6 +10,8 @@ export interface Usage {
   outputTokens: number;
   cacheReadTokens: number;
   costUsd: number;
+  /** Cost of the most recent turn (delta of cumulative total across two results) — "current inference cost". */
+  lastTurnCostUsd: number;
   turns: number;
   /** input+cacheRead of the most recent assistant message — approximates current context-window occupancy. */
   contextTokens: number;

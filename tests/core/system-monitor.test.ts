@@ -32,6 +32,18 @@ describe("SystemMonitor", () => {
     // (The timeout: 2000 option is passed to the real pExecFile — verified by code reading)
   });
 
+  it("CLAUDESHELL_HOST overrides the displayed hostname", async () => {
+    const prev = process.env.CLAUDESHELL_HOST;
+    process.env.CLAUDESHELL_HOST = "demo-host";
+    try {
+      const mon = new SystemMonitor("/repo", async () => "main\n");
+      expect((await mon.read()).hostname).toBe("demo-host");
+    } finally {
+      if (prev === undefined) delete process.env.CLAUDESHELL_HOST;
+      else process.env.CLAUDESHELL_HOST = prev;
+    }
+  });
+
   it("start/stop: ticks repeatedly, never fires cb after stop", async () => {
     let calls = 0;
     const mon = new SystemMonitor("/repo", async () => "main\n");

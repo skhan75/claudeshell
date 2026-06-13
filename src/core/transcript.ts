@@ -31,14 +31,18 @@ function summarize(name: string, input: Record<string, unknown> | undefined): st
 
 export class Transcript {
   blocks: TranscriptBlock[] = [];
-  usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: 0, turns: 0, contextTokens: 0 };
+  usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: 0, lastTurnCostUsd: 0, turns: 0, contextTokens: 0 };
   meta: SessionMeta = { slashCommands: [], mcpServers: [] };
   contextFiles = new Set<string>();
   thinkingTokens = 0;
 
+  // Injectable clock for block timestamps — defaults to Date.now so production is
+  // unchanged; tests can pass a fixed clock for deterministic timestamps.
+  constructor(private now: () => number = Date.now) {}
+
   addUser(text: string): void {
     this.thinkingTokens = 0;
-    this.blocks.push({ kind: "user", text });
+    this.blocks.push({ kind: "user", text, ts: this.now() });
   }
 
   addInfo(text: string): void {
@@ -70,14 +74,14 @@ export class Transcript {
         if (delta?.type === "thinking_delta" && typeof delta.thinking === "string") {
           const last = this.blocks[this.blocks.length - 1];
           if (last?.kind === "thinking" && last.streaming) last.text += delta.thinking;
-          else this.blocks.push({ kind: "thinking", text: delta.thinking, streaming: true });
+          else this.blocks.push({ kind: "thinking", text: delta.thinking, streaming: true, ts: this.now() });
           return;
         }
         if (delta?.type === "text_delta" && typeof delta.text === "string") {
           this.finalizeThinking();
           const last = this.blocks[this.blocks.length - 1];
           if (last?.kind === "assistant" && last.streaming) last.text += delta.text;
-          else this.blocks.push({ kind: "assistant", text: delta.text, streaming: true });
+          else this.blocks.push({ kind: "assistant", text: delta.text, streaming: true, ts: this.now() });
           return;
         }
       }
@@ -89,7 +93,7 @@ export class Transcript {
       if (text === "") return;
       const last = this.blocks[this.blocks.length - 1];
       if (last?.kind === "assistant" && last.streaming) last.text = text;
-      else this.blocks.push({ kind: "assistant", text, streaming: true });
+      else this.blocks.push({ kind: "assistant", text, streaming: true, ts: this.now() });
       return;
     }
 
@@ -103,7 +107,7 @@ export class Transcript {
           last.text = text;
           last.streaming = false;
         } else {
-          this.blocks.push({ kind: "assistant", text, streaming: false });
+          this.blocks.push({ kind: "assistant", text, streaming: false, ts: this.now() });
         }
       }
       for (const b of blocks) {
@@ -156,7 +160,13 @@ export class Transcript {
 
     if (msg.type === "result") {
       this.finalizeThinking();
-      if (typeof msg.total_cost_usd === "number") this.usage.costUsd = msg.total_cost_usd;
+      if (typeof msg.total_cost_usd === "number") {
+        // total_cost_usd is cumulative across the session; the per-turn ("current
+        // inference") cost is the delta since the previous result.
+        const delta = msg.total_cost_usd - this.usage.costUsd;
+        this.usage.lastTurnCostUsd = delta >= 0 ? delta : msg.total_cost_usd;
+        this.usage.costUsd = msg.total_cost_usd;
+      }
       if (typeof msg.num_turns === "number") this.usage.turns = msg.num_turns;
       if (msg.subtype && msg.subtype !== "success") {
         const errs = (msg as { errors?: string[] }).errors;

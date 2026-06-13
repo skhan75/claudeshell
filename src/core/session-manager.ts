@@ -87,6 +87,17 @@ export class SessionManager {
     }
   }
 
+  /**
+   * Move the active tab by `delta` (e.g. +1 next, -1 previous), wrapping around
+   * both ends. The fast keyboard tab-cycle (Ctrl+→ / Ctrl+←) routes here. No-op
+   * when there are fewer than two tabs.
+   */
+  cycleActive(delta: number): void {
+    const n = this.tabs.length;
+    if (n < 2) return;
+    this.activate((((this.activeIndex + delta) % n) + n) % n);
+  }
+
   close(id: string): void {
     const i = this.tabs.findIndex((t) => t.id === id);
     if (i === -1) return;

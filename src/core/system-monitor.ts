@@ -26,7 +26,9 @@ export class SystemMonitor {
       branch = null;
     }
     return {
-      hostname: os.hostname(),
+      // CLAUDESHELL_HOST overrides the displayed hostname (handy for screencasts
+      // and shared screens where you don't want to reveal the real machine name).
+      hostname: process.env.CLAUDESHELL_HOST || os.hostname(),
       platform: `${os.platform()} ${os.release()}`,
       memUsedPct: Math.round(((os.totalmem() - os.freemem()) / os.totalmem()) * 100),
       uptimeSec: Math.round(os.uptime()),

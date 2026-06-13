@@ -58,6 +58,26 @@ describe("Transcript", () => {
     expect(t.usage.turns).toBe(3);
   });
 
+  it("stamps blocks with an injectable clock (deterministic timestamps)", () => {
+    const t = new Transcript(() => 1_700_000_000_000);
+    t.addUser("hi");
+    t.apply({ type: "assistant", message: { content: [{ type: "text", text: "yo" }] } });
+    const user = t.blocks.find((b) => b.kind === "user")!;
+    const asst = t.blocks.find((b) => b.kind === "assistant")!;
+    expect((user as { ts?: number }).ts).toBe(1_700_000_000_000);
+    expect((asst as { ts?: number }).ts).toBe(1_700_000_000_000);
+  });
+
+  it("derives current-inference (last turn) cost as the delta of cumulative totals", () => {
+    const t = new Transcript();
+    t.apply({ type: "result", subtype: "success", total_cost_usd: 0.3, num_turns: 1 });
+    expect(t.usage.costUsd).toBeCloseTo(0.3);
+    expect(t.usage.lastTurnCostUsd).toBeCloseTo(0.3); // first turn: whole total
+    t.apply({ type: "result", subtype: "success", total_cost_usd: 0.5, num_turns: 2 });
+    expect(t.usage.costUsd).toBeCloseTo(0.5);
+    expect(t.usage.lastTurnCostUsd).toBeCloseTo(0.2); // delta of the second turn
+  });
+
   it("appends raw stream_event text deltas (installed-SDK shape)", () => {
     const t = new Transcript();
     t.apply({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "Hel" } } });
