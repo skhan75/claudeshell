@@ -14,9 +14,19 @@ import { BuffersOverlay } from "./BuffersOverlay.js";
 import { TerminalPane } from "./TerminalPane.js";
 import { ActivityIndicator } from "./ActivityIndicator.js";
 import { PermissionDialog, QuestionDialog } from "./dialogs.js";
-import { Rule, Stat } from "./chrome.js";
+import { Rule, Stat, PILL_BG } from "./chrome.js";
 import { theme } from "./theme.js";
 import type { SessionStatus } from "../core/types.js";
+import { createRequire } from "node:module";
+
+// App version for the footer badge — resolves to the package root in dev and dist.
+const VERSION: string = (() => {
+  try {
+    return (createRequire(import.meta.url)("../../package.json") as { version: string }).version;
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 /** Color-code a session status. Reads theme.* at call time so applyTheme() sticks. */
 function statusColor(status: SessionStatus): string {
@@ -96,6 +106,16 @@ export function App() {
       // Alt+\ spawns a terminal tab.
       if ((key.meta ?? false) && input === "\\") {
         manager.createTerminal();
+        return;
+      }
+      // Ctrl+→ / Ctrl+← cycle to the next / previous tab (fast keyboard nav that
+      // doesn't need the Alt modifier, which many terminals strip).
+      if (key.ctrl && key.rightArrow) {
+        manager.cycleActive(1);
+        return;
+      }
+      if (key.ctrl && key.leftArrow) {
+        manager.cycleActive(-1);
         return;
       }
       // Discoverability/onboarding overlays + explicit quit (Ctrl combos take
@@ -229,25 +249,34 @@ export function App() {
             )}
           </Box>
         )}
-        {layout === "sidebar" && !overlay && !paletteOpen && !isTerm && <SidePanel />}
+        {layout === "sidebar" && !overlay && !paletteOpen && !isTerm && <SidePanel height={mainHeight} />}
       </Box>
-      {/* Footer: single dim status line, segments separated by ` · `, truncated to width */}
-      <Box width={termWidth} overflow="hidden">
-        <Text color={theme.dim} wrap="truncate">
-          {"⌗ "}
-          {cwdLabel}
-          {branch ? (
-            <Text>
-              {" · "}
-              <Text color={theme.purple}>{`⎇ ${branch}`}</Text>
+      {/* Footer: tab chip + cwd pill + key hints on the left, a right-aligned
+          health badge with version. Padding is computed (not flexbox) so the
+          badge pins to the right edge deterministically across widths. */}
+      {(() => {
+        const idxChip = `[${manager.activeIndex + 1}/${manager.tabs.length}]`;
+        const cwdPad = ` ${cwdLabel} `;
+        const branchStr = branch ? ` ⎇ ${branch}` : "";
+        const hints = isTerm
+          ? ` · Ctrl+\\ leader · ^K cmds · ^B bufs · ^G help · ^Q quit`
+          : ` · MODE ${mode} · ^K cmds · ^B bufs · ^G help · ^Q quit`;
+        const badge = `✓ System OK v${VERSION}`;
+        const leftLen = idxChip.length + cwdPad.length + branchStr.length + hints.length;
+        const padLen = Math.max(1, termWidth - leftLen - badge.length);
+        return (
+          <Box width={termWidth} overflow="hidden">
+            <Text wrap="truncate">
+              <Text color={theme.accent}>{idxChip}</Text>
+              <Text backgroundColor={PILL_BG} color={theme.fg}>{cwdPad}</Text>
+              {branch && <Text color={theme.purple}>{branchStr}</Text>}
+              <Text color={theme.dim}>{hints}</Text>
+              {" ".repeat(padLen)}
+              <Text color={theme.good}>{badge}</Text>
             </Text>
-          ) : (
-            ""
-          )}
-          {isTerm ? ` · Ctrl+\\ leader · ^B buffers · ^G help · ^Q quit · ` : ` · MODE ${mode} · ^B buffers · ^G help · ^Q quit · `}
-          <Text color={theme.good}>System OK</Text>
-        </Text>
-      </Box>
+          </Box>
+        );
+      })()}
     </Box>
   );
 }

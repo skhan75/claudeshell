@@ -16,6 +16,26 @@ import { join } from "node:path";
 
 const pExecFile = promisify(execFile);
 
+// Run as a full-screen "modal" app on its own alternate screen buffer (like
+// vim/less/htop): take over the screen on launch, and on quit tear it down so
+// the user is dropped back at a pristine prompt with zero claudeshell residue.
+const useAltScreen = process.stdout.isTTY === true;
+let altActive = false;
+function enterAltScreen(): void {
+  if (useAltScreen && !altActive) {
+    altActive = true;
+    process.stdout.write("\x1b[?1049h\x1b[2J\x1b[H"); // enter alt buffer, clear, home
+  }
+}
+function leaveAltScreen(): void {
+  if (useAltScreen && altActive) {
+    altActive = false;
+    process.stdout.write("\x1b[?1049l\x1b[?25h"); // restore primary buffer + cursor
+  }
+}
+// Last-resort safety net so a hard exit can never strand the user in the alt buffer.
+process.on("exit", leaveAltScreen);
+
 async function preflight(): Promise<string | null> {
   try {
     await pExecFile("claude", ["--version"], { timeout: 3000, shell: process.platform === "win32" });
@@ -58,6 +78,7 @@ async function main() {
     }
     monitor.stop();
     manager.dispose();
+    leaveAltScreen();
   };
   process.on("SIGTERM", () => {
     cleanup();
@@ -67,6 +88,11 @@ async function main() {
     cleanup();
     process.exit(0);
   });
+
+  // Switch to the alternate screen just before taking over the terminal. Any
+  // preflight warning above was written to the primary buffer and is restored
+  // (above the shell prompt) once we leave the alt screen on exit.
+  enterAltScreen();
 
   const instance = render(
     <AppContext.Provider value={{ manager, config, store }}>
@@ -82,6 +108,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  leaveAltScreen(); // restore the primary buffer before surfacing a crash
   console.error(err instanceof Error ? err.stack ?? err.message : String(err));
   process.exit(1);
 });

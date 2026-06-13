@@ -205,6 +205,24 @@ describe("App overlays + onboarding", () => {
     expect(lastFrame()).toContain("BUFFERS · OPEN TABS");
   });
 
+  it("ctrl+→ / ctrl+← cycle to the next / previous tab (with wraparound)", async () => {
+    const ctx = makeCtx();
+    ctx.manager.create();
+    ctx.manager.create(); // 3 tabs total; tab 3 (index 2) active
+    ctx.manager.activate(0); // back to index 0
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write("\x1b[1;5C"); // ctrl+rightArrow → next
+    await tick();
+    expect(ctx.manager.activeIndex).toBe(1);
+    stdin.write("\x1b[1;5D"); // ctrl+leftArrow → previous
+    await tick();
+    expect(ctx.manager.activeIndex).toBe(0);
+    stdin.write("\x1b[1;5D"); // ctrl+leftArrow from 0 → wraps to last
+    await tick();
+    expect(ctx.manager.activeIndex).toBe(2);
+  });
+
   it("esc closes an open overlay via the overlay's onClose", async () => {
     const ctx = makeCtx();
     const { stdin } = renderWithCtx(<App />, ctx);

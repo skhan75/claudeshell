@@ -91,6 +91,13 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
       desc: "Jump straight to tab 1 through 9.",
     },
     {
+      key: "cycle-tab",
+      group: "Global",
+      binding: "Ctrl+← / Ctrl+→",
+      label: "Cycle tabs",
+      desc: "Step to the previous / next tab (wraps around). The Alt-free way to flip through buffers when your terminal eats the Alt key.",
+    },
+    {
       key: "switch-buffer",
       group: "Global",
       binding: "Ctrl+B",

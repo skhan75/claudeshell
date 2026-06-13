@@ -130,16 +130,31 @@ export function CommandPalette({ claudeDir }: { claudeDir?: string } = {}) {
 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={theme.accent} paddingX={1}>
+      <Text>
+        <Text bold color={theme.accent}>{historyMode ? "SEARCH HISTORY" : "COMMAND PALETTE"}</Text>
+        <Text dimColor>
+          {historyMode
+            ? "  re-run a past prompt"
+            : "  fuzzy-find: switch tabs · run actions · change mode/model · slash · pills"}
+        </Text>
+      </Text>
       <Text color={theme.accent}>
         {historyMode ? "history ❯ " : "❯ "}{query}▋
+        {query === "" && (
+          <Text dimColor>
+            {historyMode ? "  type to search…" : "  type to filter, or a prefix: switch: action: mode: model: slash:"}
+          </Text>
+        )}
       </Text>
       {rows.map((r, i) => (
         <Text key={i} inverse={i === clampedSel} color={i === clampedSel ? theme.accent : theme.fg}>
           {r.length > 70 ? r.slice(0, 67) + "…" : r}
         </Text>
       ))}
-      {rows.length === 0 && <Text dimColor>{historyMode ? "type to search past sessions" : "no matches"}</Text>}
-      <Text dimColor>{historyMode ? "Enter re-sends as prompt · Esc back" : "Enter run · Esc close"}</Text>
+      {rows.length === 0 && query !== "" && (
+        <Text dimColor>{historyMode ? "no matching prompts" : "no matches"}</Text>
+      )}
+      <Text dimColor>{historyMode ? "↑↓ move · Enter re-sends as prompt · Esc back" : "↑↓ move · Enter run · Esc close"}</Text>
     </Box>
   );
 }

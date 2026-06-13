@@ -20,12 +20,14 @@ export function Panel({
   accent = false,
   flexGrow,
   width,
+  height,
   flexDirection = "column",
 }: {
   children: React.ReactNode;
   accent?: boolean;
   flexGrow?: number;
   width?: number;
+  height?: number;
   flexDirection?: "row" | "column";
 }) {
   return (
@@ -35,6 +37,7 @@ export function Panel({
       flexDirection={flexDirection}
       flexGrow={flexGrow}
       width={width}
+      height={height}
       paddingX={1}
     >
       {children}

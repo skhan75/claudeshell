@@ -45,9 +45,52 @@ describe("SidePanel", () => {
     expect(frame).toContain("36.8k");
     expect(frame).toContain("$0.42");
     expect(frame).toContain("vibedrift");
-    expect(frame).toContain("src/auth.go");
+    expect(frame).toContain("auth.go");
     expect(frame).toContain("mbp-sami");
     expect(frame).toContain("feature/mcp");
+  });
+
+  it("renders the TOKEN_USAGE meter with a percent and current / MAX tokens", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    // 40k context tokens of a 200k window → 20%.
+    s.transcript.apply({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "x" }], usage: { input_tokens: 40_000, output_tokens: 1 } },
+    });
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("TOKEN_USAGE");
+    expect(frame).toContain("20%");
+    expect(frame).toContain("40,000");
+    expect(frame).toContain("200,000 MAX");
+  });
+
+  it("shows total cost and current-inference (last turn) cost separately", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    // Two cumulative results: total climbs 0.30 → 0.50, so the last turn cost 0.20.
+    s.transcript.apply({ type: "result", subtype: "success", total_cost_usd: 0.3, num_turns: 1 });
+    s.transcript.apply({ type: "result", subtype: "success", total_cost_usd: 0.5, num_turns: 2 });
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("COST");
+    expect(frame).toContain("$0.50 total");
+    expect(frame).toContain("INFER");
+    expect(frame).toContain("$0.20 last turn");
+  });
+
+  it("shows a filetype icon and right-aligned size for loaded buffers", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    // Point at a real file so statSync yields a size; package.json always exists.
+    s.transcript.contextFiles.add(`${process.cwd()}/package.json`);
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("LOADED BUFFERS");
+    expect(frame).toContain("package.json");
+    expect(frame).toContain("{}"); // json icon
+    expect(frame).toMatch(/\d+kb|\d+b/); // a size label
   });
 
   it("shows the configured default model before the first turn (no SDK init yet)", () => {
