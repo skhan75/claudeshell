@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { FileTree, buildRows } from "../../src/ui/FileTree.js";
-import { renderWithCtx, cleanupInk } from "./helpers.js";
+import { renderWithCtx, cleanupInk, tick } from "./helpers.js";
 
 afterEach(cleanupInk);
 
@@ -48,5 +48,18 @@ describe("FileTree", () => {
     ).lastFrame()!;
     expect(frame).toContain("types.ts");
     expect(frame).toContain("▾"); // an opened folder
+  });
+
+  it("expands and collapses a folder via the keyboard when focused", async () => {
+    const cwd = project();
+    const { stdin, lastFrame } = renderWithCtx(<FileTree cwd={cwd} width={28} height={20} focused />);
+    await tick();
+    expect(lastFrame()).not.toContain("App.tsx"); // src is folded
+    stdin.write("\x1b[C"); // → expands the selected (top) folder, src
+    await tick();
+    expect(lastFrame()).toContain("App.tsx");
+    stdin.write("\x1b[D"); // ← collapses it again
+    await tick();
+    expect(lastFrame()).not.toContain("App.tsx");
   });
 });

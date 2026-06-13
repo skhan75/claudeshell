@@ -2,7 +2,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { HostStats } from "./core/types.js";
 
 export type Layout = "sidebar" | "zen";
-export type Focus = "input" | "scroll";
+export type Focus = "input" | "scroll" | "explorer";
 export type Overlay = "help" | "sessions" | "buffers" | null;
 /** Left IDE explorer pane: a project file tree, or hidden. */
 export type LeftPanel = "files" | "hidden";

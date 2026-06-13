@@ -18,14 +18,15 @@ describe("InputBar", () => {
     expect(lastFrame()).toContain(ctx.config.models[0]);
     expect(lastFrame()).toContain("history");
     expect(lastFrame()).toContain("autocomplete");
-    // Hints render as keycap chips (↑ ↓ Tab) like the reference composer.
+    // Hints render as keycap chips (↑ ↓ Tab / @) like the reference composer.
     expect(lastFrame()).toContain("↑");
     expect(lastFrame()).toContain("↓");
     expect(lastFrame()).toContain("Tab");
-    // The clean prompt box has no PROMPT/MODE labels and drops the noisier hints.
+    expect(lastFrame()).toContain("cmds"); // the / command hint
+    expect(lastFrame()).toContain("paths"); // the @ path hint
+    // The clean prompt box has no PROMPT/MODE labels.
     expect(lastFrame()).not.toContain("PROMPT");
     expect(lastFrame()).not.toContain("MODE:");
-    expect(lastFrame()).not.toContain("/ cmds");
     // Once the SDK init reports the effective model, the footer reflects it.
     ctx.manager.active!.transcript.apply({ type: "system", subtype: "init", model: "claude-sonnet-4-6" });
     ctx.store.getState().bump();
@@ -57,6 +58,20 @@ describe("InputBar", () => {
     await tick();
     const blocks = ctx.manager.active!.transcript.blocks;
     expect(blocks[0]).toMatchObject({ kind: "user", text: "hi claude" });
+  });
+
+  it("offers built-in slash commands on a fresh session before the SDK init", async () => {
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("/"); // no init yet → built-in fallback list
+    await tick();
+    expect(lastFrame()).toContain("/clear");
+    expect(lastFrame()).toContain("/compact");
+    // typing narrows to a specific command
+    stdin.write("model");
+    await tick();
+    expect(lastFrame()).toContain("/model");
   });
 
   it("typing / shows the real CLI commands from the live init and the picker is navigable", async () => {

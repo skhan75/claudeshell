@@ -5,6 +5,7 @@ import { theme } from "./theme.js";
 import { Keycap, FilledLine, SIDEBAR_WIDTH, INPUT_BORDER, INPUT_BORDER_FOCUS, INPUT_BG } from "./chrome.js";
 import { fuzzyFilter } from "../core/fuzzy.js";
 import { listProjectFilesCached } from "../core/files.js";
+import { effectiveSlashCommands } from "../core/slash-commands.js";
 
 export function InputBar({ width: widthProp }: { width?: number } = {}) {
   const { manager, config } = useAppCtx();
@@ -32,14 +33,12 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
     setHistIdx(null);
   }, [session?.id]);
 
-  // Slash source is the real CLI command list the SDK reports on the session's
-  // transcript meta (populated eagerly). Normalize each entry to a leading "/".
-  const slashCommands = (session?.transcript.meta.slashCommands ?? []).map((c) =>
-    c.startsWith("/") ? c : "/" + c
-  );
+  // Slash source: the live list the SDK reports on the session's transcript meta
+  // when available, else the built-in fallback so the picker works on a fresh tab.
+  const slashCommands = effectiveSlashCommands(session?.transcript.meta.slashCommands ?? []);
   const slashSuggestions =
     !dismissed && text.startsWith("/") && !text.includes(" ")
-      ? fuzzyFilter(slashCommands, text.slice(1), (c) => c.slice(1)).slice(0, 5)
+      ? fuzzyFilter(slashCommands, text.slice(1), (c) => c.slice(1)).slice(0, 8)
       : [];
 
   // Live @-file picker: the current word (last space-separated token); if it
@@ -229,6 +228,12 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
           <Text>   </Text>
           <Keycap label="Tab" />
           <Text color={theme.dim}> autocomplete</Text>
+          <Text>   </Text>
+          <Keycap label="/" />
+          <Text color={theme.dim}> cmds</Text>
+          <Text>   </Text>
+          <Keycap label="@" />
+          <Text color={theme.dim}> paths</Text>
         </Box>
         <Text color={theme.dim}>
           <Text color={theme.good}>● </Text>Model: <Text color={theme.accent}>{footerModel}</Text>

@@ -1,5 +1,5 @@
-import React from "react";
-import { Box, Text } from "ink";
+import React, { useState, useEffect } from "react";
+import { Box, Text, useInput } from "ink";
 import { theme } from "./theme.js";
 import { fileIcon } from "./format.js";
 import { listProjectFilesCached } from "../core/files.js";
@@ -62,55 +62,114 @@ function ancestorsOf(p: string): string[] {
 }
 
 /**
- * Read-only project file explorer for the left IDE rail. Folded by default — only
- * top-level entries show — and the ancestor folders of the session's active file are
- * auto-expanded so the current file is revealed in context. Folders are tagged
- * ▾ (open) / ▸ (closed); files get their type icon. Truncates to the available height
- * with a "… +N more" footer.
+ * Project file explorer for the left IDE rail. Folded by default (only top-level
+ * entries show); the ancestor folders of the session's active file are pre-expanded
+ * so the current file is revealed in context. When `focused` (Ctrl+E), it owns the
+ * keyboard: ↑/↓ or j/k move the cursor, →/Enter/Space open a folder, ←/h close it
+ * (or jump to the parent), g/G jump to ends, and Esc/i hand focus back to the input.
  */
 export function FileTree({
   cwd,
   width,
   height,
   activeFile,
+  focused = false,
+  onExit,
 }: {
   cwd: string;
   width: number;
   height: number;
   activeFile?: string;
+  focused?: boolean;
+  onExit?: () => void;
 }) {
-  const rows = buildRows(listProjectFilesCached(cwd));
+  const allRows = buildRows(listProjectFilesCached(cwd));
 
-  // Folded by default; auto-expand the ancestor folders of the active file.
-  const expanded = new Set<string>(activeFile ? ancestorsOf(activeFile) : []);
-  const visible = rows.filter((r) => ancestorsOf(r.path).every((a) => expanded.has(a)));
+  // Expansion state: seed with the active file's ancestors (folded otherwise), then
+  // let the user open/close folders while the explorer is focused.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(activeFile ? ancestorsOf(activeFile) : []));
+  const [sel, setSel] = useState(0);
 
+  // Re-reveal a newly-active file's path without collapsing what the user opened.
+  useEffect(() => {
+    if (!activeFile) return;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const a of ancestorsOf(activeFile)) next.add(a);
+      return next;
+    });
+  }, [activeFile]);
+
+  const visible = allRows.filter((r) => ancestorsOf(r.path).every((a) => expanded.has(a)));
+  const selIdx = visible.length ? Math.min(sel, visible.length - 1) : 0;
+
+  useInput(
+    (input, key) => {
+      if (key.escape || (input === "i" && !key.ctrl && !key.meta)) {
+        onExit?.();
+        return;
+      }
+      if (input === "j" || key.downArrow) {
+        setSel((s) => Math.min(visible.length - 1, s + 1));
+      } else if (input === "k" || key.upArrow) {
+        setSel((s) => Math.max(0, s - 1));
+      } else if (input === "g") {
+        setSel(0);
+      } else if (input === "G") {
+        setSel(visible.length - 1);
+      } else if (key.return || input === " " || input === "l" || key.rightArrow) {
+        const row = visible[selIdx];
+        if (row?.isDir) setExpanded((prev) => new Set(prev).add(row.path));
+      } else if (input === "h" || key.leftArrow) {
+        const row = visible[selIdx];
+        if (row?.isDir && expanded.has(row.path)) {
+          setExpanded((prev) => {
+            const next = new Set(prev);
+            next.delete(row.path);
+            return next;
+          });
+        } else if (row) {
+          // Jump the cursor to the parent folder row.
+          const parent = ancestorsOf(row.path).slice(-1)[0];
+          const idx = visible.findIndex((r) => r.path === parent);
+          if (idx >= 0) setSel(idx);
+        }
+      }
+    },
+    { isActive: focused }
+  );
+
+  // Window the rows around the cursor so the selection stays on screen.
   const cap = Math.max(1, height);
-  const shown = visible.slice(0, cap);
-  const overflow = visible.length - shown.length;
+  const start = Math.max(0, Math.min(selIdx - Math.floor(cap / 2), Math.max(0, visible.length - cap)));
+  const shown = visible.slice(start, start + cap);
+  const hiddenBelow = visible.length - (start + shown.length);
 
   return (
     <Box flexDirection="column">
       {visible.length === 0 && <Text color={theme.dim}>(no files)</Text>}
-      {shown.map((r) => {
+      {shown.map((r, i) => {
+        const idx = start + i;
+        const cursor = focused && idx === selIdx;
         const active = !!activeFile && r.path === activeFile;
         const indent = "  ".repeat(r.depth);
         const icon = r.isDir ? (expanded.has(r.path) ? "▾" : "▸") : fileIcon(r.name);
         const used = 1 /* marker */ + indent.length + icon.length + 1 /* space */;
         const budget = Math.max(3, width - used);
         const name = r.name.length > budget ? r.name.slice(0, budget - 1) + "…" : r.name;
+        const nameColor = r.isDir ? theme.fg : cursor || active ? theme.accent : theme.fg;
         return (
-          <Text key={r.path} wrap="truncate">
-            <Text color={theme.accent}>{active ? "▎" : " "}</Text>
+          <Text key={r.path} wrap="truncate" inverse={cursor}>
+            <Text color={theme.accent}>{cursor ? "›" : active ? "▎" : " "}</Text>
             <Text>{indent}</Text>
             <Text color={r.isDir ? theme.purple : active ? theme.accent : theme.dim}>{icon} </Text>
-            <Text color={r.isDir ? theme.fg : active ? theme.accent : theme.fg} bold={r.isDir || active}>
+            <Text color={nameColor} bold={r.isDir || active}>
               {name}
             </Text>
           </Text>
         );
       })}
-      {overflow > 0 && <Text color={theme.dim}>{`  … +${overflow} more`}</Text>}
+      {hiddenBelow > 0 && <Text color={theme.dim}>{`  … +${hiddenBelow} more`}</Text>}
     </Box>
   );
 }

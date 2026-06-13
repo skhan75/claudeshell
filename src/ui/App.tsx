@@ -60,6 +60,7 @@ export function App() {
   useApp((s) => s.version);
   const layout = useApp((s) => s.layout);
   const leftPanel = useApp((s) => s.leftPanel);
+  const focus = useApp((s) => s.focus);
   const paletteOpen = useApp((s) => s.paletteOpen);
   const overlay = useApp((s) => s.overlay);
   const hostStats = useApp((s) => s.hostStats);
@@ -112,10 +113,20 @@ export function App() {
       }
       // Ctrl+→ / Ctrl+← cycle to the next / previous tab (fast keyboard nav that
       // doesn't need the Alt modifier, which many terminals strip).
-      // Ctrl+E cycles the left IDE explorer: file tree → conversation outline →
-      // hidden → file tree (VS Code's "explorer" key; ^B/^\ are already taken).
+      // Ctrl+E drives the left explorer (VS Code's "explorer" key; ^B/^\ are taken):
+      // closed → open + focus it for keyboard nav; open-but-unfocused → focus it;
+      // focused → close. Esc/i inside the tree hands focus back to the input.
       if (key.ctrl && input === "e") {
-        store.getState().cycleLeftPanel();
+        const st = store.getState();
+        if (st.leftPanel === "hidden") {
+          st.setLeftPanel("files");
+          st.setFocus("explorer");
+        } else if (st.focus !== "explorer") {
+          st.setFocus("explorer");
+        } else {
+          st.setLeftPanel("hidden");
+          st.setFocus("input");
+        }
         return;
       }
       if (key.ctrl && key.rightArrow) {
@@ -204,7 +215,8 @@ export function App() {
   // only shows in the sidebar layout, when not hidden, on a Claude tab, and when
   // the terminal is wide enough to keep the chat usable.
   const rightCols = layout === "sidebar" ? SIDEBAR_WIDTH : 0;
-  const leftVisible = layout === "sidebar" && leftPanel !== "hidden" && !isTerm && innerWidth >= 100;
+  const leftVisible =
+    layout === "sidebar" && leftPanel !== "hidden" && !isTerm && (innerWidth >= 100 || focus === "explorer");
   const leftCols = leftVisible ? LEFT_PANEL_WIDTH : 0;
   const chatWidth = Math.max(20, layout === "sidebar" ? innerWidth - leftCols - rightCols : innerWidth - 2);
   const leftCwd = activeTab?.cwd ?? ".";
@@ -237,7 +249,14 @@ export function App() {
         {/* Left IDE rail (explorer / outline) — first column, hidden during
             overlays/palette/terminal so those can use the full width. */}
         {leftVisible && session && !overlay && !paletteOpen && (
-          <SidebarPanel width={LEFT_PANEL_WIDTH} height={mainHeight} cwd={leftCwd} activeFile={activeFile} />
+          <SidebarPanel
+            width={LEFT_PANEL_WIDTH}
+            height={mainHeight}
+            cwd={leftCwd}
+            activeFile={activeFile}
+            focused={focus === "explorer"}
+            onExit={() => store.getState().setFocus("input")}
+          />
         )}
         {/* Overlays/palette are Claude-context but take precedence over everything
             (including a terminal tab) so the leader's g/k/r open them over a term.
@@ -289,7 +308,7 @@ export function App() {
         const branchStr = branch ? ` ⎇ ${branch}` : "";
         const hints = isTerm
           ? ` · Ctrl+\\ leader · ^K cmds · ^G help · ^Q quit`
-          : ` · MODE ${mode} · ^K cmds · ^G help · ^Q quit`;
+          : ` · MODE ${mode} · ^E explorer · ^K cmds · ^G help · ^Q quit`;
         const badge = `✓ System OK v${VERSION}`;
         const fixedLeft = idxChip.length + cwdPad.length + branchStr.length;
         // Reserve room for the badge so the health status never truncates; the hint

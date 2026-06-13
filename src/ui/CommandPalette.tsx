@@ -4,6 +4,7 @@ import { useApp, useAppCtx, type AppCtx } from "./context.js";
 import { theme } from "./theme.js";
 import { fuzzyFilter } from "../core/fuzzy.js";
 import { searchHistory, type HistoryHit } from "../core/history-search.js";
+import { effectiveSlashCommands } from "../core/slash-commands.js";
 
 export interface PaletteItem {
   label: string;
@@ -52,9 +53,7 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
     });
   }
 
-  const slashCommands = (session?.transcript.meta.slashCommands ?? []).map((c) =>
-    c.startsWith("/") ? c : "/" + c
-  );
+  const slashCommands = effectiveSlashCommands(session?.transcript.meta.slashCommands ?? []);
   for (const cmd of slashCommands) {
     items.push({ label: `slash: ${cmd}`, run: () => session?.send(cmd) });
   }
