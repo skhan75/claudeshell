@@ -29,6 +29,56 @@ describe("ChatPane", () => {
     expect(frame).toContain("I see the issue");
   });
 
+  it("renders the AI Dialogue header with the session id", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    seed(ctx);
+    const frame = renderWithCtx(<ChatPane height={12} />, ctx).lastFrame()!;
+    expect(frame).toContain("AI Dialogue");
+    // Falls back to the local session id (last 6 chars) until the SDK reports one.
+    expect(frame).toContain(`Session #${s.id.slice(-6)}`);
+  });
+
+  it("renders markdown in assistant answers (bold/heading/list/code), stripping markers", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    s.transcript.apply({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "## Plan\n\n- **do** it\n\nrun `go test`" }] },
+    });
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<ChatPane height={14} />, ctx).lastFrame()!;
+    expect(frame).toContain("Plan");
+    expect(frame).toContain("do");
+    expect(frame).toContain("go test");
+    // Markdown source markers must not leak into the rendered output.
+    expect(frame).not.toContain("##");
+    expect(frame).not.toContain("**");
+    expect(frame).not.toContain("`go test`");
+  });
+
+  it("shows an HH:MM:SS timestamp on the operator header", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    s.transcript.addUser("hello"); // addUser stamps ts: Date.now()
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<ChatPane height={10} />, ctx).lastFrame()!;
+    expect(frame).toMatch(/\d\d:\d\d:\d\d/);
+  });
+
+  it("appends a streaming cursor to a streaming assistant answer", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    s.transcript.apply({
+      type: "stream_event",
+      event: { type: "content_block_delta", delta: { type: "text_delta", text: "Working on it" } },
+    });
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<ChatPane height={10} />, ctx).lastFrame()!;
+    expect(frame).toContain("Working on it");
+    expect(frame).toContain("▋");
+  });
+
   it("shows only the latest window of a long transcript and scrolls with g/G", async () => {
     const ctx = makeCtx();
     const s = ctx.manager.active!;

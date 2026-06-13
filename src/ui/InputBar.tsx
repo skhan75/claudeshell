@@ -7,7 +7,7 @@ import { fuzzyFilter } from "../core/fuzzy.js";
 import { listProjectFilesCached } from "../core/files.js";
 
 export function InputBar() {
-  const { manager } = useAppCtx();
+  const { manager, config } = useAppCtx();
   useApp((s) => s.version);
   const focus = useApp((s) => s.focus);
   const paletteOpen = useApp((s) => s.paletteOpen);
@@ -132,6 +132,7 @@ export function InputBar() {
   );
 
   const mode = session?.permissionMode ?? "default";
+  const footerModel = session?.transcript.meta.model ?? config.models[0] ?? "—";
 
   return (
     <Box flexDirection="column">
@@ -148,9 +149,13 @@ export function InputBar() {
           <Text color={theme.accent}>❯ </Text>
           <Text color={theme.fg}>{text}</Text>
           {focused && <Text color={theme.accent}>▋</Text>}
-          {text === "" && (
-            <Text dimColor> Enter send · / commands · @ files · ↑↓ pick</Text>
-          )}
+          {text === "" && <Text dimColor> type a message…</Text>}
+        </Box>
+        <Box justifyContent="space-between">
+          <Text dimColor>↑↓ pick · Tab complete · / cmds · @ paths</Text>
+          <Text color={theme.dim}>
+            <Text color={theme.good}>● </Text>Model: <Text color={theme.accent}>{footerModel}</Text>
+          </Text>
         </Box>
       </Panel>
       {picker === "slash" && (

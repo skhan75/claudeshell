@@ -9,6 +9,21 @@ import { renderWithCtx, makeCtx, tick } from "./helpers.js";
 afterEach(cleanupInk);
 
 describe("InputBar", () => {
+  it("footer shows the keyboard hints and the effective model", async () => {
+    const ctx = makeCtx();
+    const { lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    // Before any init, the model falls back to the configured default.
+    expect(lastFrame()).toContain("Model:");
+    expect(lastFrame()).toContain(ctx.config.models[0]);
+    expect(lastFrame()).toContain("Tab complete");
+    // Once the SDK init reports the effective model, the footer reflects it.
+    ctx.manager.active!.transcript.apply({ type: "system", subtype: "init", model: "claude-sonnet-4-6" });
+    ctx.store.getState().bump();
+    await tick();
+    expect(lastFrame()).toContain("claude-sonnet-4-6");
+  });
+
   it("types and submits a prompt to the active session", async () => {
     const ctx = makeCtx();
     const { stdin } = renderWithCtx(<InputBar />, ctx);

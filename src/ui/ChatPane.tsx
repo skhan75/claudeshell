@@ -2,16 +2,12 @@ import React, { useEffect, useState } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
+import { renderMarkdown } from "./markdown.js";
+import { wrapSpans, lineText, type Span, type Line } from "./wrap-spans.js";
 import type { TranscriptBlock } from "../core/types.js";
 import type { Layout } from "../store.js";
 
-export interface Line {
-  text: string;
-  color?: string;
-  dim?: boolean;
-  bold?: boolean;
-  italic?: boolean;
-}
+export type { Span, Line };
 
 /**
  * Returns the number of terminal rows consumed by chrome around the ChatPane.
@@ -23,6 +19,7 @@ export function chromeRows(layout: Layout): number {
   return layout === "zen" ? 9 : 8;
 }
 
+/** Plain hard-wrap (byte slicing) — kept for non-markdown callers and tests. */
 export function wrapText(text: string, width: number): string[] {
   const w = Math.max(1, width);
   const out: string[] = [];
@@ -41,49 +38,79 @@ export function wrapText(text: string, width: number): string[] {
   return out;
 }
 
+/** HH:MM:SS for a block timestamp; "" when absent. */
+function fmtTime(n?: number): string {
+  return n ? new Date(n).toLocaleTimeString("en-GB", { hour12: false }) : "";
+}
+
+/**
+ * Render one transcript block to styled content lines (NO left rule — ChatPane
+ * prepends the role rule during assembly). Assistant bodies go through the
+ * markdown renderer; everything else is plain styled text.
+ */
 export function blockLines(b: TranscriptBlock, width: number): Line[] {
-  // Body text is indented under its role header by a `│ ` rule (2 cols), so wrap
-  // the body to width-2 to keep the rendered turn inside the pane width.
-  const bodyWidth = Math.max(1, width - 2);
+  const bodyWidth = Math.max(1, width - 2); // body sits under the `│ ` rule
   switch (b.kind) {
     case "user": {
-      const lines: Line[] = [{ text: "▸ OPERATOR", color: theme.warn, bold: true }];
-      for (const t of wrapText(b.text, bodyWidth)) {
-        lines.push({ text: `│ ${t}`, color: theme.warn });
-      }
+      const head: Span[] = [{ text: "▸ OPERATOR", color: theme.warn, bold: true }];
+      const t = fmtTime(b.ts);
+      if (t) head.push({ text: `  ${t}`, color: theme.dim, dim: true });
+      const lines: Line[] = [{ spans: head }];
+      for (const l of wrapSpans([{ text: b.text, color: theme.warn }], bodyWidth)) lines.push(l);
       return lines;
     }
     case "assistant": {
-      const lines: Line[] = [{ text: "◉ CLAUDE", color: theme.accent, bold: true }];
-      const body = wrapText(b.text + (b.streaming ? "▋" : ""), bodyWidth);
-      for (const t of body) {
-        // Preserve +/- diff coloring on the body text itself; the `│ ` rule stays accent.
-        const color = t.startsWith("+") ? theme.good : t.startsWith("-") ? theme.bad : theme.fg;
-        lines.push({ text: `│ ${t}`, color });
+      const head: Span[] = [{ text: "◉ CLAUDE", color: theme.accent, bold: true }];
+      const t = fmtTime(b.ts);
+      if (t) head.push({ text: `  ${t}`, color: theme.dim, dim: true });
+      const lines: Line[] = [{ spans: head }];
+      lines.push(...renderMarkdown(b.text, bodyWidth));
+      if (b.streaming) {
+        const last = lines[lines.length - 1];
+        if (last && last !== lines[0]) last.spans.push({ text: "▋", color: theme.accent });
+        else lines.push({ spans: [{ text: "▋", color: theme.accent }] });
       }
       return lines;
     }
     case "tool":
       return [{
-        text: `⚙ ${b.name} ${b.detail} ${b.status === "running" ? "…" : "✓"}`.slice(0, width),
-        color: theme.purple,
+        spans: [{
+          text: `⚙ ${b.name} ${b.detail} ${b.status === "running" ? "…" : "✓"}`.slice(0, width),
+          color: theme.purple,
+        }],
       }];
     case "thinking": {
-      // Live reasoning display: dim + italic, distinct from the answer. First line
-      // carries the ✻ marker, continuations align under it with a 2-space indent.
-      const wrapped = wrapText(b.text + (b.streaming ? "▋" : ""), bodyWidth);
-      return wrapped.map((t, i) => ({
-        text: (i === 0 ? "✻ " : "  ") + t,
-        dim: true,
-        italic: true,
+      const wrapped = wrapSpans([{ text: b.text, dim: true, italic: true }], bodyWidth);
+      const lines: Line[] = wrapped.map((l, i) => ({
+        spans: [{ text: i === 0 ? "✻ " : "  ", dim: true, italic: true }, ...l.spans],
       }));
+      if (b.streaming && lines.length) lines[lines.length - 1].spans.push({ text: "▋", dim: true });
+      return lines;
     }
     case "info":
-      // Error-ish info (✖ …) reads in bad; ordinary info stays dim.
-      return wrapText(b.text, width).map((t) =>
-        b.text.startsWith("✖") ? { text: t, color: theme.bad } : { text: t, dim: true },
+      return wrapSpans(
+        [{ text: b.text, ...(b.text.startsWith("✖") ? { color: theme.bad } : { dim: true }) }],
+        width,
       );
   }
+}
+
+/**
+ * Cache assistant markdown rendering per block. blockLines for an assistant block
+ * runs the marked parser, which would otherwise re-run for EVERY block on EVERY
+ * streaming delta (O(blocks×deltas)). Keyed by the (stable, mutated-in-place)
+ * block object; recomputed only when its text/width/streaming actually change —
+ * so finalized blocks are O(1) and only the streaming tail re-renders.
+ */
+const assistantCache = new WeakMap<TranscriptBlock, { text: string; width: number; streaming: boolean; lines: Line[] }>();
+
+function cachedBlockLines(b: TranscriptBlock, width: number): Line[] {
+  if (b.kind !== "assistant") return blockLines(b, width);
+  const hit = assistantCache.get(b);
+  if (hit && hit.text === b.text && hit.width === width && hit.streaming === b.streaming) return hit.lines;
+  const lines = blockLines(b, width);
+  assistantCache.set(b, { text: b.text, width, streaming: b.streaming, lines });
+  return lines;
 }
 
 export function ChatPane({ height: heightProp }: { height?: number }) {
@@ -96,10 +123,13 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
   const session = manager.active;
 
   const cols = stdout?.columns ?? 80;
-  const width = Math.max(20, layout === "sidebar" ? cols - 32 : cols - 2);
-  // rows - chromeRows: zen has one extra chrome row (TelemetryStrip sits above the input
-  // in that layout); chromeRows() is exported as a pure helper for testability.
-  const height = heightProp ?? Math.max(6, (stdout?.rows ?? 24) - chromeRows(layout));
+  // Sidebar occupies 34 cols; subtract the full panel width so rule+body never
+  // overflows the chat column. Zen keeps a 1-col breathing margin each side.
+  const width = Math.max(20, layout === "sidebar" ? cols - 34 : cols - 2);
+  const total = heightProp ?? Math.max(6, (stdout?.rows ?? 24) - chromeRows(layout));
+  // Reserve one row for the "AI Dialogue" header; the scroll buffer gets the rest.
+  const HEADER_ROWS = 1;
+  const height = Math.max(3, total - HEADER_ROWS);
 
   const [offset, setOffset] = useState(0); // lines scrolled up from bottom
   const [search, setSearch] = useState({ active: false, query: "" });
@@ -113,8 +143,8 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
     setMatchIdx(0);
   }, [session?.id]);
 
-  // PERF(v1.1): rebuilt on every render; during streaming this re-wraps the whole
-  // transcript per delta. Fine for short sessions — memoize prefix wrapping (all
+  // PERF(v1.1): rebuilt on every render; during streaming this re-renders the whole
+  // transcript per delta. Fine for short sessions — memoize prefix rendering (all
   // blocks except the streaming tail) before long-session support.
   const lines: Line[] = [];
   const blocks = session?.transcript.blocks ?? [];
@@ -123,9 +153,15 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
     // Blank spacer between turns: precede each conversational turn header
     // (operator / claude / thinking) with one empty line for clear separation.
     if (i > 0 && (b.kind === "user" || b.kind === "assistant" || b.kind === "thinking")) {
-      lines.push({ text: "" });
+      lines.push({ spans: [] });
     }
-    lines.push(...blockLines(b, width));
+    // Prepend the role rule to body lines (index > 0); the header line is bare.
+    const ruled = b.kind === "user" || b.kind === "assistant";
+    const ruleColor = b.kind === "user" ? theme.warn : theme.accent;
+    cachedBlockLines(b, width).forEach((l, j) => {
+      if (ruled && j > 0) lines.push({ spans: [{ text: "│ ", color: ruleColor }, ...l.spans] });
+      else lines.push(l);
+    });
   }
   const maxOffset = Math.max(0, lines.length - height);
 
@@ -133,7 +169,7 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
     const q = search.query.toLowerCase();
     if (!q) return;
     const matches = lines
-      .map((l, i) => (l.text.toLowerCase().includes(q) ? i : -1))
+      .map((l, i) => (lineText(l).toLowerCase().includes(q) ? i : -1))
       .filter((i) => i >= 0);
     if (matches.length === 0) return;
     // Advance or retreat the selected match index with modulo wrap so that every
@@ -175,20 +211,43 @@ export function ChatPane({ height: heightProp }: { height?: number }) {
   const visible = lines.slice(start, start + height);
   const q = search.query.toLowerCase();
 
+  // Chat header: "● AI Dialogue" left, "Session #<id>" right (computed padding).
+  const sid = (session?.claudeSessionId ?? session?.id ?? "").slice(-6);
+  const headLeft = "● AI Dialogue";
+  const headRight = sid ? `Session #${sid}` : "";
+  const headPad = " ".repeat(Math.max(1, width - headLeft.length - headRight.length));
+
   return (
-    <Box flexDirection="column" height={height + (search.active || search.query ? 1 : 0)}>
-      {visible.map((l, i) => (
-        <Text
-          key={start + i}
-          color={l.color}
-          dimColor={l.dim}
-          bold={l.bold}
-          italic={l.italic}
-          inverse={q !== "" && l.text.toLowerCase().includes(q)}
-        >
-          {l.text || " "}
-        </Text>
-      ))}
+    <Box flexDirection="column" height={total + (search.active || search.query ? 1 : 0)}>
+      <Text wrap="truncate">
+        <Text color={theme.good}>● </Text>
+        <Text color={theme.fg} bold>AI Dialogue</Text>
+        {headPad}
+        <Text color={theme.dim}>{headRight}</Text>
+      </Text>
+      {visible.map((l, i) => {
+        const hit = q !== "" && lineText(l).toLowerCase().includes(q);
+        const spans = l.spans.length ? l.spans : [{ text: " " } as Span];
+        return (
+          <Box key={start + i}>
+            {spans.map((s, j) => (
+              <Text
+                key={j}
+                color={s.color}
+                backgroundColor={s.bg}
+                dimColor={s.dim}
+                bold={s.bold}
+                italic={s.italic}
+                underline={s.underline}
+                strikethrough={s.strikethrough}
+                inverse={hit}
+              >
+                {s.text || " "}
+              </Text>
+            ))}
+          </Box>
+        );
+      })}
       {(search.active || search.query !== "") && (
         <Text color={theme.accent}>/{search.query}{search.active ? "▋" : `  (n/N to jump)`}</Text>
       )}
