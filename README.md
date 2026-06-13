@@ -18,7 +18,7 @@ Requires Node ≥ 20 and a logged-in Claude Code (`claude` then `/login`), or
 
 | Key | Action |
 |---|---|
-| `Ctrl+K` | Command palette (sessions, actions, pills, slash commands, history) |
+| `Ctrl+K` | Command palette (sessions, actions, pills, slash commands, history, model switching) |
 | `Ctrl+O` | Toggle layout: sidebar ⇄ zen |
 | `Alt+1..9` | Jump to session tab |
 | `Alt+T` / `Alt+W` | New / close session |
@@ -51,6 +51,24 @@ slash = "/commit"
 ```
 
 Key bindings support `ctrl+<letter>`, `alt+<letter>`, and `esc` forms.
+
+### Model switching
+
+Open the palette (`Ctrl+K`) and type `model:` to see available models. Selecting one
+switches the active session to that model immediately for the next query.
+
+The list of available models is configurable via the `models` key (top-level, not under
+a section). Project config wins over global; falls back to the built-in defaults:
+
+```toml
+models = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"]
+```
+
+Example — restrict to two models in your project `.claudeshell.toml`:
+
+```toml
+models = ["claude-opus-4-8", "claude-sonnet-4-6"]
+```
 
 ## Themes
 

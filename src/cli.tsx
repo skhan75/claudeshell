@@ -47,7 +47,10 @@ async function main() {
   const monitor = new SystemMonitor(cwd);
   monitor.start(5000, (stats) => store.getState().setHostStats(stats));
 
+  let cleaned = false;
   const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
     try {
       manager.saveState();
     } catch {
