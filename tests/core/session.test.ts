@@ -35,6 +35,66 @@ describe("Session", () => {
     expect(s.transcript.usage.costUsd).toBeCloseTo(0.01);
   });
 
+  it("pulls the SDK's live capabilities (models, account, MCP) once initialized", async () => {
+    const capQuery: QueryFn = ({ prompt }) => {
+      async function* gen() {
+        for await (const _ of prompt) {
+          yield { type: "system", subtype: "init", session_id: "s", model: "claude-opus-4-8" } as SdkMessage;
+          yield { type: "result", subtype: "success", num_turns: 1 } as SdkMessage;
+          return;
+        }
+      }
+      return Object.assign(gen(), {
+        interrupt: vi.fn(async () => {}),
+        supportedModels: vi.fn(async () => [
+          { value: "claude-opus-4-8", displayName: "Opus 4.8" },
+          { value: "claude-haiku-4-5", displayName: "Haiku 4.5" },
+        ]),
+        accountInfo: vi.fn(async () => ({ subscriptionType: "Max", apiProvider: "firstParty" })),
+        mcpServerStatus: vi.fn(async () => [{ name: "vibedrift", status: "connected" }]),
+      });
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn: capQuery });
+    s.send("hi"); // → init → fetchCapabilities()
+    await vi.waitFor(() => expect(s.availableModels.length).toBe(2));
+    expect(s.availableModels[0].displayName).toBe("Opus 4.8");
+    expect(s.account?.subscriptionType).toBe("Max");
+    expect(s.mcpStatus[0]?.name).toBe("vibedrift");
+  });
+
+  it("clears capability state when the session crashes (no stale data from a dead handle)", async () => {
+    const crashCap: QueryFn = ({ prompt }) => {
+      async function* gen() {
+        for await (const _ of prompt) {
+          yield { type: "system", subtype: "init", session_id: "s" } as SdkMessage;
+          throw new Error("stream died");
+        }
+      }
+      return Object.assign(gen(), {
+        supportedModels: vi.fn(async () => [{ value: "m", displayName: "M" }]),
+        accountInfo: vi.fn(async () => ({ subscriptionType: "Max" })),
+        mcpServerStatus: vi.fn(async () => [{ name: "x", status: "connected" }]),
+      });
+    };
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn: crashCap });
+    s.send("hi"); // init fires fetchCapabilities, then the stream throws
+    await vi.waitFor(() => expect(s.status).toBe("crashed"));
+    // give the (guarded) capability promises a chance to resolve — they must NOT repopulate
+    await new Promise((r) => setTimeout(r, 5));
+    expect(s.availableModels).toEqual([]);
+    expect(s.account).toBeNull();
+    expect(s.mcpStatus).toEqual([]);
+  });
+
+  it("degrades gracefully when the query exposes none of the capability methods", async () => {
+    const s = new Session({ id: "s1", cwd: "/tmp", queryFn: scriptedQuery([{ type: "system", subtype: "init", session_id: "s" }]) });
+    s.send("hi");
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+    expect(s.availableModels).toEqual([]);
+    expect(s.account).toBeNull();
+    expect(s.mcpStatus).toEqual([]);
+  });
+
   it("queues messages sent while a turn is already processing", () => {
     const s = new Session({ id: "s1", cwd: "/tmp", queryFn: scriptedQuery([]) });
     s.send("first");

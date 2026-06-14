@@ -78,11 +78,47 @@ export interface SdkMessage {
   estimated_tokens?: number;
 }
 
+/** A model the SDK reports as available (from query().supportedModels()). */
+export interface ModelInfo {
+  value: string;
+  displayName: string;
+  description?: string;
+}
+
+/** A slash command the SDK reports (from query().supportedCommands()). */
+export interface SlashCommandInfo {
+  name: string;
+  description?: string;
+  argumentHint?: string;
+}
+
+/** Live MCP server status (from query().mcpServerStatus()). */
+export interface McpServerStatus {
+  name: string;
+  status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | string;
+}
+
+/** Account / auth info (from query().accountInfo()). */
+export interface AccountInfo {
+  email?: string;
+  organization?: string;
+  subscriptionType?: string;
+  apiProvider?: string;
+}
+
 export interface QueryHandle extends AsyncIterable<SdkMessage> {
   interrupt?(): Promise<void>;
   setPermissionMode?(mode: string): Promise<void>;
   setModel?(model: string): Promise<void>;
   close?(): void | Promise<void>;
+  // Richer control surface (streaming mode). All optional so test fakes/older SDKs
+  // simply don't provide them and the Session falls back gracefully.
+  supportedModels?(): Promise<ModelInfo[]>;
+  supportedCommands?(): Promise<SlashCommandInfo[]>;
+  mcpServerStatus?(): Promise<McpServerStatus[]>;
+  reconnectMcpServer?(name: string): Promise<void>;
+  toggleMcpServer?(name: string, enabled: boolean): Promise<void>;
+  accountInfo?(): Promise<AccountInfo | undefined>;
 }
 
 export type QueryFn = (args: {

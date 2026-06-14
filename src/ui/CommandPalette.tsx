@@ -41,8 +41,19 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
     items.push({ label: `mode: ${mode}`, run: () => void session?.setPermissionMode(mode) });
   }
 
-  for (const model of config.models) {
-    items.push({ label: `model: ${model}`, run: () => void session?.setModel(model) });
+  // Prefer the SDK's live model list; fall back to the configured ids pre-init.
+  const models = session?.availableModels.length
+    ? session.availableModels.map((m) => ({ value: m.value, label: m.displayName || m.value }))
+    : config.models.map((m) => ({ value: m, label: m }));
+  for (const m of models) {
+    items.push({ label: `model: ${m.label}`, run: () => void session?.setModel(m.value) });
+  }
+
+  // Live MCP control (from the SDK's mcpServerStatus): reconnect / enable / disable.
+  for (const srv of session?.mcpStatus ?? []) {
+    const enabled = srv.status !== "disabled";
+    items.push({ label: `mcp: reconnect ${srv.name}`, run: () => void session?.reconnectMcp(srv.name) });
+    items.push({ label: `mcp: ${enabled ? "disable" : "enable"} ${srv.name}`, run: () => void session?.toggleMcp(srv.name, !enabled) });
   }
 
   for (const pill of config.pills) {

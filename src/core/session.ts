@@ -1,6 +1,7 @@
 import { AsyncQueue } from "./async-queue.js";
 import { Transcript } from "./transcript.js";
 import type {
+  AccountInfo, McpServerStatus, ModelInfo,
   PermissionRequest, PermissionResult, QueryFn, QueryHandle, SdkMessage, SessionStatus,
 } from "./types.js";
 
@@ -60,6 +61,48 @@ function lazyQuery(): QueryFn {
           // best effort
         }
       },
+      supportedModels: async () => {
+        try {
+          return (await (await handlePromise).supportedModels?.()) ?? [];
+        } catch {
+          return [];
+        }
+      },
+      supportedCommands: async () => {
+        try {
+          return (await (await handlePromise).supportedCommands?.()) ?? [];
+        } catch {
+          return [];
+        }
+      },
+      mcpServerStatus: async () => {
+        try {
+          return (await (await handlePromise).mcpServerStatus?.()) ?? [];
+        } catch {
+          return [];
+        }
+      },
+      reconnectMcpServer: async (name: string) => {
+        try {
+          await (await handlePromise).reconnectMcpServer?.(name);
+        } catch {
+          // best effort
+        }
+      },
+      toggleMcpServer: async (name: string, enabled: boolean) => {
+        try {
+          await (await handlePromise).toggleMcpServer?.(name, enabled);
+        } catch {
+          // best effort
+        }
+      },
+      accountInfo: async () => {
+        try {
+          return await (await handlePromise).accountInfo?.();
+        } catch {
+          return undefined;
+        }
+      },
     };
   };
 }
@@ -73,6 +116,11 @@ export class Session {
   turnStartedAt: number | null = null;
   /** Messages submitted while a turn was already running, waiting their turn. */
   queuedCount = 0;
+  /** Live SDK capability data, pulled once the session initializes (best-effort). */
+  availableModels: ModelInfo[] = [];
+  account: AccountInfo | null = null;
+  mcpStatus: McpServerStatus[] = [];
+  private capabilitiesFetched = false;
   transcript = new Transcript();
   pendingPermission: PermissionRequest | null = null;
   error: string | null = null;
@@ -170,6 +218,11 @@ export class Session {
       this.status = "crashed";
       this.turnStartedAt = null;
       this.queuedCount = 0;
+      // Drop capability data from the dead connection; re-pull after a resume.
+      this.capabilitiesFetched = false;
+      this.availableModels = [];
+      this.account = null;
+      this.mcpStatus = [];
       this.error = err instanceof Error ? err.message : String(err);
       this.transcript.addInfo(`✖ session crashed: ${this.error} — press r to resume`);
       // Allow a later ensureStarted()/resume() to reconnect.
@@ -184,7 +237,11 @@ export class Session {
 
   private consume(msg: SdkMessage): void {
     this.transcript.apply(msg);
-    if (msg.type === "system" && msg.subtype === "init" && msg.session_id) this.claudeId = msg.session_id;
+    if (msg.type === "system" && msg.subtype === "init") {
+      if (msg.session_id) this.claudeId = msg.session_id;
+      // The query is now initialized — pull the SDK's live model/account/MCP data.
+      this.fetchCapabilities();
+    }
     if (msg.type === "result") {
       // A turn finished; the next queued message (if any) begins processing.
       if (this.queuedCount > 0) this.queuedCount--;
@@ -267,6 +324,48 @@ export class Session {
     await this.handle?.setModel?.(model);
     this.transcript.meta.model = model;
     this.onChange();
+  }
+
+  /** Pull the SDK's live capability data once the session has initialized
+   *  (supportedModels / accountInfo / mcpServerStatus). Best-effort — fakes/older
+   *  SDKs simply leave the defaults. */
+  private fetchCapabilities(): void {
+    if (this.capabilitiesFetched || !this.handle) return;
+    this.capabilitiesFetched = true;
+    const h = this.handle;
+    // Guard every callback on `this.handle === h`: if the session crashed, was
+    // disposed, or resumed onto a new handle before these resolve, the stale result
+    // from the dead connection is dropped (no UI write, no onChange on a gone tab).
+    void h.supportedModels?.()
+      .then((m) => { if (this.handle === h && m && m.length) { this.availableModels = m; this.onChange(); } })
+      .catch(() => {});
+    void h.accountInfo?.()
+      .then((a) => { if (this.handle === h && a) { this.account = a; this.onChange(); } })
+      .catch(() => {});
+    void this.refreshMcpStatus();
+  }
+
+  private async refreshMcpStatus(): Promise<void> {
+    const h = this.handle;
+    if (!h) return;
+    try {
+      const s = await h.mcpServerStatus?.();
+      if (this.handle === h && s) { this.mcpStatus = s; this.onChange(); }
+    } catch {
+      // best effort
+    }
+  }
+
+  /** Reconnect a configured MCP server (SDK control request). */
+  async reconnectMcp(name: string): Promise<void> {
+    await this.handle?.reconnectMcpServer?.(name);
+    await this.refreshMcpStatus();
+  }
+
+  /** Enable/disable a configured MCP server (SDK control request). */
+  async toggleMcp(name: string, enabled: boolean): Promise<void> {
+    await this.handle?.toggleMcpServer?.(name, enabled);
+    await this.refreshMcpStatus();
   }
 
   /** Recover a crashed tab: next send() starts a fresh query resuming the same Claude session. */

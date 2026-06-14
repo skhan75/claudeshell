@@ -27,6 +27,14 @@ function permColor(mode: string): string {
   }
 }
 
+/** Color-code an MCP server's live connection status. */
+function mcpColor(status: string): string {
+  if (status === "connected") return theme.good;
+  if (status === "disabled") return theme.dim;
+  if (status === "pending") return theme.warn;
+  return theme.bad; // failed / needs-auth
+}
+
 /** Color-code a session status dot/word. */
 function statusColor(status: SessionStatus): string {
   switch (status) {
@@ -202,12 +210,15 @@ export function SidePanel({ height }: { height?: number } = {}) {
         <Row label="STATUS" value={s.status} color={statusColor(s.status)} />
         <Row label="TAB" value={`${tabIndex}/${tabTotal}`} />
         <Row label="PERMS" value={s.permissionMode} color={permColor(s.permissionMode)} />
-        {meta.mcpServers.map((m) => (
+        {s.account?.subscriptionType && <Row label="PLAN" value={s.account.subscriptionType} color={theme.purple} />}
+        {s.account?.apiProvider && <Row label="AUTH" value={s.account.apiProvider} />}
+        {/* Live MCP status from the SDK (richer states) when available, else init list. */}
+        {(s.mcpStatus.length ? s.mcpStatus : meta.mcpServers).map((m) => (
           <Text key={m.name} wrap="truncate">
             <Text color={theme.dim}>MCP</Text>
             {gap(3, m.name.length + 2, CONTENT_WIDTH)}
             <Text color={theme.fg}>{m.name}</Text>{" "}
-            <Text color={m.status === "connected" ? theme.good : theme.bad}>●</Text>
+            <Text color={mcpColor(m.status)}>●</Text>
           </Text>
         ))}
       </Box>
