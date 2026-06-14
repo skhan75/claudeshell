@@ -83,6 +83,26 @@ export interface FleetRow {
   active: boolean;
 }
 
+/** One compare row per swarm worker: its current best answer + cost. */
+export interface SwarmEntry {
+  id: string;
+  title: string;
+  status: SessionStatus;
+  lastText: string;
+  costUsd: number;
+}
+
+/** Project swarm sessions into compare rows (each worker's latest answer side by side). */
+export function swarmCompare(sessions: readonly Session[]): SwarmEntry[] {
+  return sessions.map((s) => ({
+    id: s.id,
+    title: s.title,
+    status: s.status,
+    lastText: lastAssistantText(s) ?? "",
+    costUsd: s.transcript.usage.costUsd,
+  }));
+}
+
 /** Project ALL claude tabs (terminals excluded) into renderable fleet rows,
  *  preserving each tab's original .index for correct activate/interrupt mapping. */
 export function projectFleet(tabs: readonly Tab[], activeIndex: number, now = Date.now()): FleetRow[] {

@@ -148,6 +148,7 @@ export class SessionManager {
    * Returns the created sessions.
    */
   spawnWorkers(task: string, n: number, opts?: { group?: string; label?: string }): Session[] {
+    if (!task.trim()) return [];
     // Cost-guard: a fleet is the big multiplicative spender — block it over the hard cap.
     const guard = this.guardSpend("spawn");
     if (!guard.allowed) {
@@ -169,6 +170,30 @@ export class SessionManager {
     this.activeIndex = Math.min(callerIndex, this.tabs.length - 1);
     this.notify();
     return workers;
+  }
+
+  /**
+   * `/swarm` — spawn `n` agents on the SAME task as a competing group (tagged
+   * `group: "swarm"` so the fleet dashboard's compare view can pick them out).
+   * A thin framing over {@link spawnWorkers}; inherits its cost-guard + focus behavior.
+   */
+  swarm(task: string, n: number, opts?: { group?: string }): Session[] {
+    return this.spawnWorkers(task, n, { group: opts?.group ?? "swarm", label: "swarm" });
+  }
+
+  /**
+   * Fork a session into a new tab that RESUMES the same Claude context — a branch point
+   * for exploring a divergent path. Returns null (no tab created) when the parent has no
+   * resumable context yet (`claudeSessionId` is only set after the SDK init) or is mid-turn
+   * (concurrent resume of one session id is unsafe) — the UI surfaces a hint in that case.
+   */
+  fork(s: Session, opts?: { group?: string }): Session | null {
+    const rid = s.claudeSessionId;
+    if (!rid) return null;
+    // v1: only fork an idle/crashed parent — never while a turn is in flight.
+    if (s.status === "processing" || s.status === "awaiting-permission" || s.status === "awaiting-input") return null;
+    const base = s.title.replace(/^⑂ /, ""); // don't stack ⑂ prefixes on re-forks
+    return this.create({ resumeSessionId: rid, title: `⑂ ${base}`, group: opts?.group });
   }
 
   createTerminal(init?: { spawnFn?: SpawnFn; cols?: number; rows?: number; cwd?: string }): Terminal {

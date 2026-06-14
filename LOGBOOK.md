@@ -73,6 +73,17 @@ memory across sessions; **read it at the start of work and append to it as you g
 - No new global key (Ctrl+F is fleet); `/review` routes via the Phase-0 router. HelpOverlay
   gains a "Fleet / review / cost" group. 404 tests pass, typecheck clean.
 
+### Shipped — Option C Phase 5: fork + swarm + compare
+- `SessionManager.fork(s)→Session|null`: resumes the parent's `claudeSessionId` in a new
+  `⑂ <title>` tab. Returns null (no tab) when the parent has no resumable context yet OR is
+  mid-turn — **concurrent resume of one session id is unsafe** (v1 only forks an idle/crashed
+  parent; revisit if the SDK proves safe). Strips a leading `⑂ ` so re-forks don't stack.
+- `SessionManager.swarm(task, n)` = `spawnWorkers` with `group: "swarm"` (inherits the cost-guard
+  + focus restore). `/swarm <task>` spawns + opens the dashboard.
+- `fleet.ts` `swarmCompare` + `SwarmEntry`; FleetOverlay `c` toggles a compare view of each
+  swarm worker's latest answer + cost (stacked, truncated — no horizontal overflow).
+- `/fork` + palette "fork session ⑂" (shown only when `claudeSessionId` exists). 414 tests pass.
+
 ### Shipped — Option C Phase 1: the editor satellite
 - `SessionManager.openInEditor(file, line?, spawnFn?)` opens `$EDITOR`
   (`VISUAL ?? EDITOR ?? "vi"`) as a dedicated terminal tab — `+LINE` when a line is given —

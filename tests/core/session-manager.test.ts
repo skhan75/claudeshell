@@ -342,6 +342,25 @@ describe("SessionManager", () => {
     expect(m.spawnWorkers("x", -5, {})[0].title).toBe("▶ worker 1/1");
   });
 
+  it("swarm(task, n) spawns n same-task agents tagged group 'swarm'", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    m.create();
+    const ws = m.swarm("refactor the parser", 3);
+    expect(ws).toHaveLength(3);
+    expect(ws.every((w) => w.group === "swarm")).toBe(true);
+    expect(ws.map((w) => w.title)).toEqual(["▶ swarm 1/3", "▶ swarm 2/3", "▶ swarm 3/3"]);
+    for (const w of ws) {
+      expect(w.transcript.blocks.some((b) => b.kind === "user" && b.text === "refactor the parser")).toBe(true);
+    }
+  });
+
+  it("swarm/spawnWorkers ignore an empty / whitespace task", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    m.create();
+    expect(m.swarm("   ", 3)).toEqual([]);
+    expect(m.spawnWorkers("", 2, {})).toEqual([]);
+  });
+
   it("spawnWorkers restores the caller's active tab (does not yank focus to a worker)", () => {
     const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
     const main = m.create();

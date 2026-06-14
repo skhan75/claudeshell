@@ -43,11 +43,11 @@ describe("routeSlash — the single slash routing source of truth", () => {
     expect(routeSlash("/compact   spacey   focus")).toEqual({ kind: "compact", focus: "spacey   focus" });
   });
 
-  it("every built-in DEFAULT command is app-handled (never falls through to send)", () => {
+  it("no built-in DEFAULT command leaks to the SDK as a dead `send` (null no-op is ok for arg commands)", () => {
     for (const cmd of DEFAULT_SLASH_COMMANDS) {
-      const a = routeSlash(cmd);
-      expect(a, cmd).not.toBeNull();
-      expect(a?.kind, cmd).not.toBe("send");
+      // A built-in is either app-handled (an action) or a deliberate no-op (null, e.g. bare
+      // /swarm needs a task) — it must NEVER be sent verbatim to the SDK as a dead command.
+      expect(routeSlash(cmd)?.kind, cmd).not.toBe("send");
     }
   });
 

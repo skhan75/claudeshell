@@ -17,6 +17,23 @@ describe("execSlash — the single routed-action sink", () => {
     expect(ctx.store.getState().overlay).toBe("fleet");
   });
 
+  it("/swarm <task> spawns a swarm group and opens the dashboard", () => {
+    const ctx = makeCtx();
+    expect(execSlash(routeSlash("/swarm design the api"), ctx)).toBe(true);
+    const swarmTabs = ctx.manager.tabs.filter((t) => t.kind === "claude" && t.group === "swarm");
+    expect(swarmTabs).toHaveLength(ctx.config.fleetSize);
+    expect(ctx.store.getState().overlay).toBe("fleet");
+  });
+
+  it("/fork without a resumable context adds an info hint and creates no tab", () => {
+    const ctx = makeCtx();
+    const before = ctx.manager.tabs.length;
+    expect(execSlash(routeSlash("/fork"), ctx)).toBe(true);
+    expect(ctx.manager.tabs.length).toBe(before);
+    const s = ctx.manager.active!;
+    expect(s.transcript.blocks.some((b) => b.kind === "info" && b.text.includes("fork"))).toBe(true);
+  });
+
   it("bare /parallel and /fleet open the dashboard without spawning", () => {
     const ctx = makeCtx();
     const before = ctx.manager.tabs.length;

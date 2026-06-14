@@ -3,7 +3,8 @@ import { Box, Text, useInput } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
 import { Panel, FilledLine } from "./chrome.js";
-import { projectFleet, fmtElapsed } from "../core/fleet.js";
+import { projectFleet, swarmCompare, fmtElapsed } from "../core/fleet.js";
+import type { Session } from "../core/session.js";
 import { fmtUsd, fmtK } from "./format.js";
 
 const HILITE_BG = "#1b273f";
@@ -38,6 +39,7 @@ export function FleetOverlay({ onClose }: { onClose: () => void }) {
   const { manager } = useAppCtx();
   useApp((s) => s.version);
   const [sel, setSel] = useState(0);
+  const [compare, setCompare] = useState(false);
   const [, setNow] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setNow((n) => n + 1), 1000);
@@ -46,10 +48,15 @@ export function FleetOverlay({ onClose }: { onClose: () => void }) {
 
   const rows = projectFleet(manager.tabs, manager.activeIndex);
   const clamped = rows.length ? Math.min(sel, rows.length - 1) : 0;
+  const swarm = manager.tabs.filter((t): t is Session => t.kind === "claude" && t.group === "swarm");
 
   useInput((input, key) => {
     if (key.escape || (key.ctrl && input === "f")) {
       onClose();
+      return;
+    }
+    if (input === "c") {
+      setCompare((c) => !c); // toggle the swarm compare view
       return;
     }
     if (input === "j" || key.downArrow) {
@@ -73,6 +80,44 @@ export function FleetOverlay({ onClose }: { onClose: () => void }) {
       return;
     }
   });
+
+  if (compare) {
+    const entries = swarmCompare(swarm);
+    return (
+      <Box flexDirection="column" flexGrow={1}>
+        <Panel accent flexDirection="column">
+          <Text bold color={theme.accent}>
+            COMPARE · swarm ({entries.length})
+          </Text>
+          {entries.length === 0 ? (
+            <Box marginTop={1}>
+              <Text color={theme.dim}>no swarm agents — type </Text>
+              <Text color={theme.accent}>/swarm &lt;task&gt;</Text>
+              <Text color={theme.dim}> to launch one</Text>
+            </Box>
+          ) : (
+            entries.map((e) => {
+              const preview = e.lastText.replace(/\s+/g, " ").trim().slice(0, 220) || "(no answer yet)";
+              return (
+                <Box key={e.id} flexDirection="column" marginTop={1}>
+                  <Text>
+                    <Text bold color={theme.accent}>{e.title}</Text>
+                    <Text color={theme.dim}>{`  ${e.status} · ${fmtUsd(e.costUsd)}`}</Text>
+                  </Text>
+                  <Text color={theme.fg} wrap="wrap">
+                    {preview}
+                  </Text>
+                </Box>
+              );
+            })
+          )}
+          <Box marginTop={1}>
+            <Text color={theme.dim}>c back to list · esc close</Text>
+          </Box>
+        </Panel>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column" flexGrow={1}>
@@ -122,7 +167,7 @@ export function FleetOverlay({ onClose }: { onClose: () => void }) {
           </Box>
         )}
         <Box marginTop={1}>
-          <Text color={theme.dim}>j/k move · enter focus · x interrupt · esc close</Text>
+          <Text color={theme.dim}>j/k move · enter focus · x interrupt · c compare · esc close</Text>
         </Box>
       </Panel>
     </Box>

@@ -27,6 +27,10 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
 
   items.push({ label: "action: new session", run: () => void manager.create() });
   items.push({ label: "action: new terminal", run: () => void manager.createTerminal() });
+  // Fork is only meaningful once the session has a resumable context (post-init).
+  if (session?.claudeSessionId) {
+    items.push({ label: "action: fork session ⑂", run: () => void manager.fork(session) });
+  }
 
   // Editor satellite (Option C): hand the most-recently-touched file to the user's
   // own $EDITOR. Only offered once a file is in the conversation's context.

@@ -28,7 +28,20 @@ export function execSlash(action: SlashAction, ctx: AppCtx): boolean {
       if (workers.length) store.getState().setOverlay("fleet");
       return true;
     }
-    // swarm / fork are wired in Phase 5; until then they fall through to a normal prompt.
+    case "swarm": {
+      const workers = manager.swarm(action.task, config.fleetSize);
+      if (workers.length) store.getState().setOverlay("fleet");
+      return true;
+    }
+    case "fork": {
+      const s = manager.active;
+      if (!s) return true;
+      const forked = manager.fork(s);
+      if (!forked) {
+        s.transcript.addInfo("⑂ can't fork — needs an idle session with history (send a message and let it finish first)");
+      }
+      return true;
+    }
     default:
       return false;
   }

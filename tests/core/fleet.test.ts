@@ -7,6 +7,7 @@ import {
   fmtElapsed,
   projectFleet,
   lastAssistantText,
+  swarmCompare,
   WORKER_GLYPH,
 } from "../../src/core/fleet.js";
 import type { Session } from "../../src/core/session.js";
@@ -103,5 +104,20 @@ describe("projectFleet", () => {
   it("returns [] when there are no claude tabs", () => {
     const term = { kind: "terminal", id: "t1", title: "sh" } as unknown as Tab;
     expect(projectFleet([term], 0)).toEqual([]);
+  });
+});
+
+describe("swarmCompare", () => {
+  it("maps swarm sessions to rows with their last answer + cost", () => {
+    const t1 = new Transcript();
+    t1.usage.costUsd = 0.1;
+    t1.blocks.push({ kind: "assistant", text: "answer A", streaming: false });
+    const t2 = new Transcript(); // no assistant text yet
+    const s1 = fakeSession({ id: "a", title: "▶ swarm 1/2", transcript: t1 });
+    const s2 = fakeSession({ id: "b", title: "▶ swarm 2/2", transcript: t2 });
+    const rows = swarmCompare([s1, s2]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ id: "a", lastText: "answer A", costUsd: 0.1 });
+    expect(rows[1].lastText).toBe("");
   });
 });
