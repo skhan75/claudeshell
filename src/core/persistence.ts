@@ -10,7 +10,7 @@ import type { BudgetCaps } from "./types.js";
 export function statePathFor(cwd: string): string {
   const slug = cwd.replace(/[/.]/g, "-");
   const hash = createHash("sha1").update(cwd).digest("hex").slice(0, 8);
-  return join(homedir(), ".claudeshell", "state", `${slug}-${hash}.json`);
+  return join(homedir(), ".openshell", "state", `${slug}-${hash}.json`);
 }
 
 export interface SavedSession {

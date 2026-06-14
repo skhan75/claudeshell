@@ -1,4 +1,4 @@
-# claudeshell
+# openshell
 
 A visual terminal shell for [Claude Code](https://claude.com/claude-code): multi-session
 tabs, interactive PTY terminals, live token/cost telemetry, MCP + host status, a fuzzy
@@ -6,7 +6,7 @@ command palette, a buffer switcher, and a saved-sessions picker — all inside y
 
 ## Screenshot
 
-The frame below is the claudeshell idle state captured from a real boot (empty session,
+The frame below is the openshell idle state captured from a real boot (empty session,
 sidebar layout): a status bar with the tab list, effective model, status, and clock at the
 top; a bordered SESSION / CONTEXT / HOST sidebar on the right (model, token meter, cost,
 permission mode, context files, host); a bordered prompt box; and a key-hint footer.
@@ -35,23 +35,23 @@ L          man…                 session     claude-opus-4-8   idle
 │   pick                                       ││                              │
 ╰──────────────────────────────────────────────╯│                              │
                                                 ╰──────────────────────────────╯
-⌗ workspace/claudeshell · MODE default · ^B buffers · ^G help · ^Q quit · Syste…
+⌗ workspace/openshell · MODE default · ^B buffers · ^G help · ^Q quit · Syste…
 ```
 
 ## Demo
 
-![claudeshell demo](demo/claudeshell.gif)
+![openshell demo](demo/openshell.gif)
 
 A live session — streaming a turn, the `/` command picker (real Claude CLI commands)
 and `@` file picker, the `Ctrl+K` command palette, the `Ctrl+G` help guide, the `Ctrl+B`
 buffer switcher, and opening a new tab. Maintainers can re-record it with
-`vhs demo/claudeshell.tape` (see [demo/README.md](demo/README.md)).
+`vhs demo/openshell.tape` (see [demo/README.md](demo/README.md)).
 
 ## Install
 
 ```bash
-npm install -g claudeshell
-cd your-project && claudeshell
+npm install -g openshell
+cd your-project && openshell
 ```
 
 Requires Node ≥ 20 and a logged-in Claude Code (`claude` then `/login`), or
@@ -80,7 +80,7 @@ macOS note: Alt shortcuts need "Use Option as Meta key" enabled in your terminal
 
 ## Config
 
-Global `~/.claudeshell/config.toml`, per-project `.claudeshell.toml` (project wins):
+Global `~/.openshell/config.toml`, per-project `.openshell.toml` (project wins):
 
 ```toml
 [layout]
@@ -113,7 +113,7 @@ a section). Project config wins over global; falls back to the built-in defaults
 models = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"]
 ```
 
-Example — restrict to two models in your project `.claudeshell.toml`:
+Example — restrict to two models in your project `.openshell.toml`:
 
 ```toml
 models = ["claude-opus-4-8", "claude-sonnet-4-6"]
@@ -121,8 +121,8 @@ models = ["claude-opus-4-8", "claude-sonnet-4-6"]
 
 ## Themes
 
-claudeshell ships with a built-in **cyberpunk** theme. You can create custom themes as
-TOML files under `~/.claudeshell/themes/<name>.toml` and select one in your config.
+openshell ships with a built-in **cyberpunk** theme. You can create custom themes as
+TOML files under `~/.openshell/themes/<name>.toml` and select one in your config.
 
 ### Theme keys
 
@@ -140,7 +140,7 @@ All seven keys accept 3- or 6-digit hex color values (e.g. `#fff` or `#4cc2ff`):
 
 ### Creating a theme
 
-Create `~/.claudeshell/themes/solar.toml`:
+Create `~/.openshell/themes/solar.toml`:
 
 ```toml
 accent  = "#b58900"
@@ -152,7 +152,7 @@ bad     = "#dc322f"
 fg      = "#839496"
 ```
 
-Then select it in `~/.claudeshell/config.toml`:
+Then select it in `~/.openshell/config.toml`:
 
 ```toml
 [theme]

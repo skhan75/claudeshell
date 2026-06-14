@@ -162,10 +162,10 @@ function mergePills(base: Pill[], extra: Pill[] | undefined): Pill[] {
 }
 
 export function loadConfig(opts: { globalDir?: string; cwd?: string } = {}): Config {
-  const globalDir = opts.globalDir ?? join(homedir(), ".claudeshell");
+  const globalDir = opts.globalDir ?? join(homedir(), ".openshell");
   const cwd = opts.cwd ?? process.cwd();
   const g = readToml(join(globalDir, "config.toml"));
-  const p = readToml(join(cwd, ".claudeshell.toml"));
+  const p = readToml(join(cwd, ".openshell.toml"));
 
   const layoutRaw = p.layout?.default ?? g.layout?.default ?? "sidebar";
   return {

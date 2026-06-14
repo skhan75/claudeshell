@@ -32,15 +32,15 @@ describe("SystemMonitor", () => {
     // (The timeout: 2000 option is passed to the real pExecFile — verified by code reading)
   });
 
-  it("CLAUDESHELL_HOST overrides the displayed hostname", async () => {
-    const prev = process.env.CLAUDESHELL_HOST;
-    process.env.CLAUDESHELL_HOST = "demo-host";
+  it("OPENSHELL_HOST overrides the displayed hostname", async () => {
+    const prev = process.env.OPENSHELL_HOST;
+    process.env.OPENSHELL_HOST = "demo-host";
     try {
       const mon = new SystemMonitor("/repo", async () => "main\n");
       expect((await mon.read()).hostname).toBe("demo-host");
     } finally {
-      if (prev === undefined) delete process.env.CLAUDESHELL_HOST;
-      else process.env.CLAUDESHELL_HOST = prev;
+      if (prev === undefined) delete process.env.OPENSHELL_HOST;
+      else process.env.OPENSHELL_HOST = prev;
     }
   });
 

@@ -1,6 +1,6 @@
-# claudeshell demo assets
+# openshell demo assets
 
-This directory contains demo assets for the claudeshell README.
+This directory contains demo assets for the openshell README.
 
 ## Generating the GIF
 
@@ -41,10 +41,10 @@ npm install
 Run the tape from the **repo root**:
 
 ```bash
-vhs demo/claudeshell.tape
+vhs demo/openshell.tape
 ```
 
-This produces `demo/claudeshell.gif`. The tape:
+This produces `demo/openshell.gif`. The tape:
 - Boots the TUI with `npm run dev`
 - Sends a short prompt and waits for a response
 - Opens the command palette (`Ctrl+K`), the help overlay (`Ctrl+G`),
@@ -53,16 +53,16 @@ This produces `demo/claudeshell.gif`. The tape:
 
 ### 4. Commit the GIF
 
-Once generated, commit `demo/claudeshell.gif` alongside any tape changes so
+Once generated, commit `demo/openshell.gif` alongside any tape changes so
 the README image stays up to date:
 
 ```bash
-git add demo/claudeshell.gif demo/claudeshell.tape
+git add demo/openshell.gif demo/openshell.tape
 git commit -m "docs: update demo gif"
 ```
 
 ## Updating the tape
 
-Edit `demo/claudeshell.tape` and re-run `vhs demo/claudeshell.tape`. The tape
+Edit `demo/openshell.tape` and re-run `vhs demo/openshell.tape`. The tape
 uses [VHS syntax](https://github.com/charmbracelet/vhs#vhs-command-reference):
 `Type`, `Enter`, `Sleep`, `Ctrl+<key>`, `Alt+<key>`, `Escape`, etc.

@@ -1,8 +1,8 @@
-# claudeshell Implementation Plan
+# openshell Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build claudeshell v1 — a terminal TUI wrapping Claude Code with multi-session tabs, sidebar/zen layouts, command palette, pills, and full permission-dialog parity, per `docs/superpowers/specs/2026-06-12-claudeshell-design.md`.
+**Goal:** Build openshell v1 — a terminal TUI wrapping Claude Code with multi-session tabs, sidebar/zen layouts, command palette, pills, and full permission-dialog parity, per `docs/superpowers/specs/2026-06-12-openshell-design.md`.
 
 **Architecture:** Headless core (SessionManager → Session wrapping Agent SDK `query()` in streaming-input mode; transcript reducer; config/persistence/host-monitor) publishes change events into a zustand store; Ink/React UI renders from it. Each session tab owns one Claude Code subprocess via the SDK. Permission prompts flow through the SDK `canUseTool` callback into modal dialogs.
 
@@ -17,7 +17,7 @@
 - `AskUserQuestion` arrives through `canUseTool`; answer with `{behavior:"allow", updatedInput: { questions: input.questions, answers: { [questionText]: selectedLabel } }}` (multi-select: labels joined with ", ").
 - Result message: `{type:"result", total_cost_usd, usage, num_turns, duration_ms, session_id}`. Assistant messages carry `message.usage` and `message.model`. System init message: `{type:"system", subtype:"init", session_id, model, mcp_servers, slash_commands}` (consume defensively with optional chaining).
 
-**Conventions:** ESM with NodeNext — every relative import MUST end in `.js` (even from `.tsx` files). Run all commands from the repo root `/Users/samiahmadkhan/workspace/claudeshell`.
+**Conventions:** ESM with NodeNext — every relative import MUST end in `.js` (even from `.tsx` files). Run all commands from the repo root `/Users/samiahmadkhan/workspace/openshell`.
 
 ---
 
@@ -30,12 +30,12 @@
 
 ```json
 {
-  "name": "claudeshell",
+  "name": "openshell",
   "version": "0.1.0",
   "description": "A visual terminal shell for Claude Code — tabs, telemetry, pills, fast navigation",
   "license": "MIT",
   "type": "module",
-  "bin": { "claudeshell": "dist/cli.js" },
+  "bin": { "openshell": "dist/cli.js" },
   "files": ["dist"],
   "engines": { "node": ">=18" },
   "scripts": {
@@ -94,11 +94,11 @@ export default defineConfig({
 import React from "react";
 import { render, Text } from "ink";
 
-render(<Text color="cyan">claudeshell scaffold OK</Text>);
+render(<Text color="cyan">openshell scaffold OK</Text>);
 ```
 
 Run: `npx tsx src/cli.tsx`
-Expected: prints `claudeshell scaffold OK` in cyan and exits (Ctrl+C if it stays open).
+Expected: prints `openshell scaffold OK` in cyan and exits (Ctrl+C if it stays open).
 
 - [ ] **Step 5: Verify build works**
 
@@ -109,7 +109,7 @@ Expected: same output from the compiled binary.
 
 ```bash
 git add package.json package-lock.json tsconfig.json vitest.config.ts src/cli.tsx
-git commit -m "chore: scaffold claudeshell (ink + tsc + vitest)"
+git commit -m "chore: scaffold openshell (ink + tsc + vitest)"
 ```
 
 ---
@@ -162,7 +162,7 @@ export interface PermissionRequest {
   resolve: (r: PermissionResult) => void;
 }
 
-/** Narrow view of SDK messages — only the fields claudeshell consumes. */
+/** Narrow view of SDK messages — only the fields openshell consumes. */
 export interface SdkMessage {
   type: string;
   subtype?: string;
@@ -417,7 +417,7 @@ describe("loadConfig", () => {
       `[layout]\ndefault = "zen"\n\n[[pills]]\nlabel = "deploy"\nprompt = "Deploy to staging"\n`
     );
     writeFileSync(
-      join(projectDir, ".claudeshell.toml"),
+      join(projectDir, ".openshell.toml"),
       `[layout]\ndefault = "sidebar"\n\n[[pills]]\nlabel = "deploy"\nprompt = "Deploy with make deploy"\n`
     );
     const cfg = loadConfig({ globalDir, cwd: projectDir });
@@ -509,10 +509,10 @@ function mergePills(base: Pill[], extra: Pill[] | undefined): Pill[] {
 }
 
 export function loadConfig(opts: { globalDir?: string; cwd?: string } = {}): Config {
-  const globalDir = opts.globalDir ?? join(homedir(), ".claudeshell");
+  const globalDir = opts.globalDir ?? join(homedir(), ".openshell");
   const cwd = opts.cwd ?? process.cwd();
   const g = readToml(join(globalDir, "config.toml"));
-  const p = readToml(join(cwd, ".claudeshell.toml"));
+  const p = readToml(join(cwd, ".openshell.toml"));
 
   const layoutRaw = p.layout?.default ?? g.layout?.default ?? "sidebar";
   return {
@@ -1367,7 +1367,7 @@ import { projectSlug, searchHistory } from "../../src/core/history-search.js";
 
 describe("history search", () => {
   it("derives Claude Code's project slug from cwd", () => {
-    expect(projectSlug("/Users/sami/workspace/claudeshell")).toBe("-Users-sami-workspace-claudeshell");
+    expect(projectSlug("/Users/sami/workspace/openshell")).toBe("-Users-sami-workspace-openshell");
   });
 
   it("finds matching user/assistant text in project JSONL transcripts", () => {
@@ -1610,7 +1610,7 @@ import { renderWithCtx, makeCtx } from "./helpers.js";
 describe("App shell", () => {
   it("renders tab bar with the active session", () => {
     const { lastFrame } = renderWithCtx(<App />);
-    expect(lastFrame()).toContain("CLAUDESHELL");
+    expect(lastFrame()).toContain("OPENSHELL");
     expect(lastFrame()).toContain("1:new session");
   });
 
@@ -1769,7 +1769,7 @@ export function TabBar() {
   return (
     <Box>
       <Text color={theme.accent} bold>
-        ▌CLAUDESHELL{" "}
+        ▌OPENSHELL{" "}
       </Text>
       {manager.sessions.map((s, i) => {
         const active = i === manager.activeIndex;
@@ -3147,7 +3147,7 @@ And add a size guard plus resize re-render. Import `useStdout` from ink, then at
   }, [stdout, store]);
 
   if ((stdout?.columns ?? 80) < 60 || (stdout?.rows ?? 24) < 14) {
-    return <Text color="yellow">terminal too small for claudeshell — resize to at least 60×14</Text>;
+    return <Text color="yellow">terminal too small for openshell — resize to at least 60×14</Text>;
   }
 ```
 
@@ -3182,7 +3182,7 @@ async function preflight(): Promise<string | null> {
   } catch {
     return [
       "warning: `claude` CLI not found on PATH.",
-      "claudeshell runs on the bundled Agent SDK, but Claude Code is recommended for auth:",
+      "openshell runs on the bundled Agent SDK, but Claude Code is recommended for auth:",
       "  npm install -g @anthropic-ai/claude-code && claude  (then /login)",
     ].join("\n");
   }
@@ -3196,7 +3196,7 @@ async function main() {
   const config = loadConfig({ cwd });
   const manager = new SessionManager({
     cwd,
-    statePath: join(homedir(), ".claudeshell", "state.json"),
+    statePath: join(homedir(), ".openshell", "state.json"),
   });
   manager.restoreState();
 
@@ -3264,7 +3264,7 @@ git commit -m "feat: real CLI entry — preflight, persistence, host monitor, cl
 ```ts
 import { describe, it, expect } from "vitest";
 
-const enabled = process.env.CLAUDESHELL_E2E === "1";
+const enabled = process.env.OPENSHELL_E2E === "1";
 
 describe.skipIf(!enabled)("e2e smoke (real Claude Code)", () => {
   it("completes a one-turn session and yields a result message", async () => {
@@ -3282,12 +3282,12 @@ describe.skipIf(!enabled)("e2e smoke (real Claude Code)", () => {
 ```
 
 Run: `npx vitest run tests/e2e/smoke.test.ts`
-Expected: SKIPPED (no env var). With `CLAUDESHELL_E2E=1` and valid auth: PASS.
+Expected: SKIPPED (no env var). With `OPENSHELL_E2E=1` and valid auth: PASS.
 
 - [ ] **Step 2: Write README.md**
 
 ```markdown
-# claudeshell
+# openshell
 
 A visual terminal shell for [Claude Code](https://claude.com/claude-code): multi-session
 tabs, live token/cost telemetry, MCP + host status, quick-action pills, and a command
@@ -3296,8 +3296,8 @@ palette — all inside your terminal.
 ## Install
 
 ​```bash
-npm install -g claudeshell
-cd your-project && claudeshell
+npm install -g openshell
+cd your-project && openshell
 ​```
 
 Requires Node ≥ 18 and a logged-in Claude Code (`claude` then `/login`), or
@@ -3321,7 +3321,7 @@ macOS note: Alt shortcuts need "Use Option as Meta key" enabled in your terminal
 
 ## Config
 
-Global `~/.claudeshell/config.toml`, per-project `.claudeshell.toml` (project wins):
+Global `~/.openshell/config.toml`, per-project `.openshell.toml` (project wins):
 
 ​```toml
 [layout]
@@ -3353,7 +3353,7 @@ clarifying questions render as selectable option lists.
 Add to the top level:
 ```json
   "keywords": ["claude", "claude-code", "tui", "terminal", "ink", "ai"],
-  "repository": { "type": "git", "url": "https://github.com/samiahmadkhan/claudeshell" }
+  "repository": { "type": "git", "url": "https://github.com/samiahmadkhan/openshell" }
 ```
 Add to `scripts`:
 ```json
@@ -3462,7 +3462,7 @@ git commit -m "feat: model switching via palette, configurable model list"
 
 ### Task 18: Custom themes (user request, added 2026-06-12)
 
-Users can write theme files and select them in config; claudeshell ships the default "cyberpunk" theme. Execute after Task 17.
+Users can write theme files and select them in config; openshell ships the default "cyberpunk" theme. Execute after Task 17.
 
 **Files:**
 - Modify: `src/ui/theme.ts`, `src/core/config.ts`, `src/cli.tsx`
@@ -3582,12 +3582,12 @@ export function applyTheme(overrides: Partial<Theme>): void {
 
 `src/cli.tsx`: in `main()` right after `const config = loadConfig({ cwd });` add:
 ```ts
-  applyTheme(loadThemeOverrides(config.theme, join(homedir(), ".claudeshell", "themes")));
+  applyTheme(loadThemeOverrides(config.theme, join(homedir(), ".openshell", "themes")));
 ```
 with `applyTheme, loadThemeOverrides` imported from `./ui/theme.js`.
 
 - [ ] **Step 4: Verify** — both test files pass, full `npm test`, `npm run typecheck`, `npm run build`.
 
-- [ ] **Step 5: README** — add a "Themes" section documenting `~/.claudeshell/themes/<name>.toml`, the seven keys, and `[theme] name = "..."` (do in/after Task 16 if README exists by then).
+- [ ] **Step 5: README** — add a "Themes" section documenting `~/.openshell/themes/<name>.toml`, the seven keys, and `[theme] name = "..."` (do in/after Task 16 if README exists by then).
 
 - [ ] **Step 6: Commit** — `feat(ui): user themes — cyberpunk default + TOML overrides`

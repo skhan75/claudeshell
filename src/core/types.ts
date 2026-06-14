@@ -80,7 +80,7 @@ export interface PermissionRequest {
   resolve: (r: PermissionResult) => void;
 }
 
-/** Narrow view of SDK messages — only the fields claudeshell consumes. */
+/** Narrow view of SDK messages — only the fields openshell consumes. */
 export interface SdkMessage {
   type: string;
   subtype?: string;

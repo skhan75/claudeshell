@@ -1,4 +1,4 @@
-// Manual E2E: launch the built claudeshell in a real pseudo-terminal, seed a long
+// Manual E2E: launch the built openshell in a real pseudo-terminal, seed a long
 // transcript, enable mouse capture (--mouse), then feed SGR wheel-up events and check
 // that the visible content scrolls (older SEEDLINE-* appear, the last one disappears).
 // Run: node scripts/e2e-scroll.mjs
@@ -12,7 +12,7 @@ const child = spawn(process.execPath, [require.resolve("../dist/cli.js"), "--mou
   cols: COLS,
   rows: ROWS,
   cwd: process.cwd(),
-  env: { ...process.env, CLAUDESHELL_E2E_SEED: "60" },
+  env: { ...process.env, OPENSHELL_E2E_SEED: "60" },
 });
 
 let buf = "";

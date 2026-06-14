@@ -24,7 +24,7 @@ function chord(binding: string): string {
 /**
  * A keybinding guide built on Telescope. The configurable chords (palette,
  * layout, new/close session, focus toggle) are read from config.keys; the rest
- * are hardcoded to the real claudeshell bindings. Selecting an item is a no-op
+ * are hardcoded to the real openshell bindings. Selecting an item is a no-op
  * (it is a reference card) other than closing.
  */
 export function HelpOverlay({ onClose }: { onClose: () => void }) {
@@ -37,7 +37,7 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
       key: "quit",
       group: "Onboarding",
       binding: chord("ctrl+q"),
-      label: "Quit claudeshell",
+      label: "Quit openshell",
       desc: "To quit, press Ctrl+Q (or Ctrl+C). Your tabs auto-save and reopen next launch.",
     },
     {
@@ -116,7 +116,7 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
       group: "Global",
       binding: "Alt+\\",
       label: "New terminal",
-      desc: "Open a terminal tab (or use the command palette). Inside a terminal, the Ctrl+\\ leader reaches claudeshell commands (b buffers, t term, c claude, w close, …).",
+      desc: "Open a terminal tab (or use the command palette). Inside a terminal, the Ctrl+\\ leader reaches openshell commands (b buffers, t term, c claude, w close, …).",
     },
     {
       key: "perm-modes",

@@ -20,7 +20,7 @@ describe("App shell", () => {
   afterEach(cleanupInk);
   it("renders tab bar with the active session", () => {
     const { lastFrame } = renderWithCtx(<App />);
-    expect(lastFrame()).toContain("CLAUDESHELL");
+    expect(lastFrame()).toContain("OPENSHELL");
     expect(lastFrame()).toContain("1:new session");
   });
 

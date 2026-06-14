@@ -32,7 +32,7 @@ const ITEMS: CompactItem[] = [
 ];
 
 /**
- * The /compact picker. The SDK has no native compaction, so claudeshell emulates it:
+ * The /compact picker. The SDK has no native compaction, so openshell emulates it:
  * Claude summarizes the conversation (one real turn), then the chosen mode reseeds a
  * fresh context with the summary — reclaiming the context window. Opened by /compact;
  * the optional focus typed after the command steers the summary.

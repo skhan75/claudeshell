@@ -58,6 +58,6 @@ describe("TabBar", () => {
   it("shows the brand prefix", () => {
     const ctx = makeCtx();
     const { lastFrame } = renderWithCtx(<TabBar />, ctx);
-    expect(lastFrame()).toContain("CLAUDESHELL");
+    expect(lastFrame()).toContain("OPENSHELL");
   });
 });

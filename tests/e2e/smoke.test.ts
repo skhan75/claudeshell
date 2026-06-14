@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-const enabled = process.env.CLAUDESHELL_E2E === "1";
+const enabled = process.env.OPENSHELL_E2E === "1";
 
 describe.skipIf(!enabled)("e2e smoke (real Claude Code)", () => {
   it("completes a one-turn session and yields a result message", async () => {

@@ -1,15 +1,15 @@
 {
-  "name": "claudeshell",
+  "name": "openshell",
   "version": "0.1.0",
   "description": "A visual terminal shell for Claude Code — tabs, telemetry, pills, fast navigation",
   "license": "MIT",
   "author": "Sami Ahmad Khan",
   "repository": {
     "type": "git",
-    "url": "https://github.com/skhan75/claudeshell"
+    "url": "https://github.com/skhan75/openshell"
   },
-  "bugs": "https://github.com/skhan75/claudeshell/issues",
-  "homepage": "https://github.com/skhan75/claudeshell#readme",
+  "bugs": "https://github.com/skhan75/openshell/issues",
+  "homepage": "https://github.com/skhan75/openshell#readme",
   "keywords": [
     "claude",
     "claude-code",
@@ -20,7 +20,7 @@
   ],
   "type": "module",
   "bin": {
-    "claudeshell": "dist/cli.js"
+    "openshell": "dist/cli.js"
   },
   "files": [
     "dist"

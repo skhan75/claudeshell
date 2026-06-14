@@ -5,7 +5,7 @@ dist/
 .DS_Store
 .optionc-designs.json
 
-# stray local python scratch (not part of claudeshell)
+# stray local python scratch (not part of openshell)
 __pycache__/
 wordcount.py
 test_wordcount.py

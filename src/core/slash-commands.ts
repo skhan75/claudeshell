@@ -1,7 +1,7 @@
 import type { AppOverlay } from "./types.js";
 
 /**
- * The built-in CLI slash commands claudeshell ACTUALLY implements. The interactive
+ * The built-in CLI slash commands openshell ACTUALLY implements. The interactive
  * `claude` CLI has many more (/vim, /doctor, /config, /cost, /rewind, …) but those are
  * handled by the CLI's terminal UI, NOT the Agent SDK's query() — sending them does
  * nothing ("isn't available in this environment"). So we only advertise the ones we

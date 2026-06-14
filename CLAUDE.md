@@ -12,12 +12,12 @@ to `LOGBOOK.md` whenever you make a critical decision, land a notable change, or
 
 ## What this is
 
-claudeshell is a terminal TUI (Ink 5 + React 18, TypeScript ESM) that wraps Claude Code
+openshell is a terminal TUI (Ink 5 + React 18, TypeScript ESM) that wraps Claude Code
 via `@anthropic-ai/claude-agent-sdk`. Each session tab drives one SDK `query()` in
 streaming-input mode; permission prompts surface as TUI dialogs through `canUseTool`.
 
-Design spec: `docs/superpowers/specs/2026-06-12-claudeshell-design.md`
-Implementation plan (task-by-task, with verified SDK contracts): `docs/superpowers/plans/2026-06-12-claudeshell.md`
+Design spec: `docs/superpowers/specs/2026-06-12-openshell-design.md`
+Implementation plan (task-by-task, with verified SDK contracts): `docs/superpowers/plans/2026-06-12-openshell.md`
 
 ## Commands
 
@@ -36,7 +36,7 @@ Two strictly separated layers:
 - **`src/core/`** — headless, no UI imports, fully unit-testable. `Session` wraps one SDK
   `query()` (injectable `QueryFn` for tests — never import the SDK directly in tests);
   `Transcript` reduces SDK messages into renderable blocks + usage; `SessionManager` owns
-  tabs + persistence (`~/.claudeshell/state.json`).
+  tabs + persistence (`~/.openshell/state.json`).
 - **`src/ui/`** — Ink components subscribing to a zustand vanilla store (`src/store.ts`).
   Core publishes via `manager.subscribe → store.bump()` (a version counter); components
   re-render off `useApp((s) => s.version)` and read manager state directly.

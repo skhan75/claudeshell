@@ -6,7 +6,7 @@ import { projectSlug, searchHistory } from "../../src/core/history-search.js";
 
 describe("history search", () => {
   it("derives Claude Code's project slug from cwd", () => {
-    expect(projectSlug("/Users/sami/workspace/claudeshell")).toBe("-Users-sami-workspace-claudeshell");
+    expect(projectSlug("/Users/sami/workspace/openshell")).toBe("-Users-sami-workspace-openshell");
   });
 
   it("finds matching user/assistant text in project JSONL transcripts", () => {

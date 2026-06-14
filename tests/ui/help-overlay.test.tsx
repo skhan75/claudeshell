@@ -10,7 +10,7 @@ describe("HelpOverlay", () => {
     const { lastFrame } = renderWithCtx(<HelpOverlay onClose={() => {}} />);
     const frame = lastFrame()!;
     expect(frame).toContain("HELP · KEYBINDINGS");
-    // The first (default-highlighted) item is "Quit claudeshell"; its preview
+    // The first (default-highlighted) item is "Quit openshell"; its preview
     // text mentions Ctrl+Q and quitting + auto-save guidance.
     expect(frame).toContain("Ctrl+Q");
     expect(frame).toContain("quit");
@@ -70,12 +70,12 @@ describe("HelpOverlay", () => {
   it("arrow-down moves the highlighted selection", async () => {
     const { stdin, lastFrame } = renderWithCtx(<HelpOverlay onClose={() => {}} />);
     await tick();
-    // Default highlight is the first item "Quit claudeshell".
-    expect(lastFrame()).toContain("› Quit claudeshell");
+    // Default highlight is the first item "Quit openshell".
+    expect(lastFrame()).toContain("› Quit openshell");
     stdin.write("\x1b[B"); // down arrow
     await tick();
     // Selection moved off the first item.
-    expect(lastFrame()).not.toContain("› Quit claudeshell");
+    expect(lastFrame()).not.toContain("› Quit openshell");
   });
 
   it("Esc calls onClose", async () => {

@@ -40,7 +40,7 @@ function bytesFor(input: string, key: Key): string {
 /**
  * The live screen for the active terminal tab. Renders the headless xterm
  * snapshot and routes keystrokes to the PTY, with a tmux-style Ctrl+\ leader
- * for claudeshell commands.
+ * for openshell commands.
  */
 export function TerminalPane({ height, onQuit }: { height: number; onQuit?: () => void }) {
   const { manager, store } = useAppCtx();

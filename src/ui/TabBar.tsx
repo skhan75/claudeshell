@@ -86,7 +86,7 @@ export function TabBar({ width }: { width?: number } = {}) {
   // block); fall back to the full terminal width for standalone/tests.
   const termWidth = width ?? stdout?.columns ?? 80;
 
-  // Brand prefix: "▌CLAUDESHELL " = 13 chars
+  // Brand prefix: "▌OPENSHELL " = 13 chars
   const brandWidth = 13;
   const availableWidth = Math.max(10, termWidth - brandWidth);
 
@@ -110,7 +110,7 @@ export function TabBar({ width }: { width?: number } = {}) {
   return (
     <Box>
       <Text color={theme.accent} bold>
-        ▌CLAUDESHELL{" "}
+        ▌OPENSHELL{" "}
       </Text>
       {hiddenLeft > 0 && (
         <Text color={theme.dim}>{`‹${hiddenLeft} `}</Text>

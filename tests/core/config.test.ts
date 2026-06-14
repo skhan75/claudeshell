@@ -29,7 +29,7 @@ describe("loadConfig", () => {
   });
 
   it("reads [mouse] scroll", () => {
-    writeFileSync(join(projectDir, ".claudeshell.toml"), `[mouse]\nscroll = true\n`);
+    writeFileSync(join(projectDir, ".openshell.toml"), `[mouse]\nscroll = true\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).mouseScroll).toBe(true);
   });
 
@@ -38,24 +38,24 @@ describe("loadConfig", () => {
   });
 
   it("reads [permissions] mode (allowlisted) and dangerouslySkip → bypassPermissions", () => {
-    writeFileSync(join(projectDir, ".claudeshell.toml"), `[permissions]\nmode = "acceptEdits"\n`);
+    writeFileSync(join(projectDir, ".openshell.toml"), `[permissions]\nmode = "acceptEdits"\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).permissionMode).toBe("acceptEdits");
-    writeFileSync(join(projectDir, ".claudeshell.toml"), `[permissions]\ndangerouslySkip = true\n`);
+    writeFileSync(join(projectDir, ".openshell.toml"), `[permissions]\ndangerouslySkip = true\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).permissionMode).toBe("bypassPermissions");
-    writeFileSync(join(projectDir, ".claudeshell.toml"), `[permissions]\nmode = "nonsense"\n`);
+    writeFileSync(join(projectDir, ".openshell.toml"), `[permissions]\nmode = "nonsense"\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).permissionMode).toBe("default"); // rejected
   });
 
   it("reads an allowlisted [fleet] permissionMode and rejects unknown values", () => {
-    writeFileSync(join(projectDir, ".claudeshell.toml"), `[fleet]\npermissionMode = "acceptEdits"\n`);
+    writeFileSync(join(projectDir, ".openshell.toml"), `[fleet]\npermissionMode = "acceptEdits"\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).fleetPermissionMode).toBe("acceptEdits");
-    writeFileSync(join(projectDir, ".claudeshell.toml"), `[fleet]\npermissionMode = "yolo"\n`);
+    writeFileSync(join(projectDir, ".openshell.toml"), `[fleet]\npermissionMode = "yolo"\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).fleetPermissionMode).toBe("default");
   });
 
   it("reads [fleet] size and [budget] caps, clamping/sanitizing bad values", () => {
     writeFileSync(
-      join(projectDir, ".claudeshell.toml"),
+      join(projectDir, ".openshell.toml"),
       `[fleet]\nsize = 5\n\n[budget]\nsoftUsd = 2.5\nhardUsd = 10\n`
     );
     const cfg = loadConfig({ globalDir, cwd: projectDir });
@@ -65,7 +65,7 @@ describe("loadConfig", () => {
 
   it("rejects non-positive / non-finite fleet size and budget caps", () => {
     writeFileSync(
-      join(projectDir, ".claudeshell.toml"),
+      join(projectDir, ".openshell.toml"),
       `[fleet]\nsize = -2\n\n[budget]\nsoftUsd = 0\nhardUsd = -5\n`
     );
     const cfg = loadConfig({ globalDir, cwd: projectDir });
@@ -75,7 +75,7 @@ describe("loadConfig", () => {
 
   it("project budget overrides global budget per-cap", () => {
     writeFileSync(join(globalDir, "config.toml"), `[budget]\nsoftUsd = 1\nhardUsd = 5\n`);
-    writeFileSync(join(projectDir, ".claudeshell.toml"), `[budget]\nhardUsd = 20\n`);
+    writeFileSync(join(projectDir, ".openshell.toml"), `[budget]\nhardUsd = 20\n`);
     const cfg = loadConfig({ globalDir, cwd: projectDir });
     expect(cfg.budget).toEqual({ softUsd: 1, hardUsd: 20 });
   });
@@ -86,7 +86,7 @@ describe("loadConfig", () => {
       `[layout]\ndefault = "zen"\n\n[[pills]]\nlabel = "deploy"\nprompt = "Deploy to staging"\n`
     );
     writeFileSync(
-      join(projectDir, ".claudeshell.toml"),
+      join(projectDir, ".openshell.toml"),
       `[layout]\ndefault = "sidebar"\n\n[[pills]]\nlabel = "deploy"\nprompt = "Deploy with make deploy"\n`
     );
     const cfg = loadConfig({ globalDir, cwd: projectDir });

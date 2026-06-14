@@ -8,6 +8,19 @@ memory across sessions; **read it at the start of work and append to it as you g
 
 ## 2026-06-14
 
+### RENAME — claudeshell → OpenShell (product brand), groundwork for multi-provider
+- Replaced the product token everywhere (`claudeshell`→`openshell`, `CLAUDESHELL_*`→
+  `OPENSHELL_*` env vars, `~/.claudeshell`→`~/.openshell`, `.claudeshell.toml`→
+  `.openshell.toml`, npm name `openshell`). Preserved all legitimate `claude` tokens
+  (`@anthropic-ai/claude-agent-sdk`, the `claude` CLI, `claude_code` preset, model ids,
+  `claudeSessionId`). `CLAUDE.md` filename kept (Claude Code convention). 464 tests pass.
+- **Direction:** OpenShell = a provider-agnostic agent terminal. The seam already exists —
+  `Session` injects a `QueryFn` returning a `QueryHandle` that yields a normalized
+  `SdkMessage` stream the `Transcript` consumes. Future: formalize a `Provider` interface
+  (Anthropic adapter = today's `lazyQuery`; add OpenAI/Gemini adapters that translate their
+  streaming APIs + tool-calls into the same `SdkMessage`/`QueryHandle` shape → identical UX).
+- Repo dir + GitHub remote (`skhan75/claudeshell`) NOT renamed here — that's a manual step.
+
 ### DECISION — park the agent fleet (`/parallel` + `/swarm`); keep `/fork` + dashboard
 - **Parked**, not deleted: the multi-agent *spawning* (`/parallel`, `/swarm`, `spawnWorkers`)
   stays in the tree (tested, behind explicit commands) but we stop investing and it is NOT a

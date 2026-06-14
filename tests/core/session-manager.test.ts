@@ -170,7 +170,7 @@ describe("SessionManager", () => {
     // The slug portion is still present; the hash suffix now follows it.
     expect(a).toContain("-projects-alpha-");
     expect(a.endsWith(".json")).toBe(true);
-    expect(a).toContain(join(".claudeshell", "state"));
+    expect(a).toContain(join(".openshell", "state"));
   });
 
   it("clamps activeIndex when closing the last tab while it is active", () => {
@@ -580,7 +580,7 @@ describe("SessionManager", () => {
     expect(p1).not.toBe(p2);
     expect(p1.endsWith(".json")).toBe(true);
     expect(p2.endsWith(".json")).toBe(true);
-    expect(p1).toContain(join(".claudeshell", "state"));
+    expect(p1).toContain(join(".openshell", "state"));
     // Stability: same input → same path.
     expect(statePathFor("/a/b")).toBe(p1);
   });

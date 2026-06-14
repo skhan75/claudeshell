@@ -243,7 +243,7 @@ export function App() {
   );
 
   if (tooSmall) {
-    return <Text color="yellow">terminal too small for claudeshell — resize to at least 60×14</Text>;
+    return <Text color="yellow">terminal too small for openshell — resize to at least 60×14</Text>;
   }
 
   const status: SessionStatus = session?.status ?? "idle";

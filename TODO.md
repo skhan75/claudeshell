@@ -44,5 +44,5 @@ Roughly prioritized; see chat 2026-06-14 for the rationale.
    degrades gracefully instead of crashing the tab ("flimsy" concern).
 4. **Deepen `/review`** — commit from the UI, stage individual hunks; pairs with the editor
    satellite. Strongest "cockpit" story now that the fleet is parked.
-5. **Distribution polish** — confirm `npm i -g` / `npx claudeshell` works end-to-end; flesh out
+5. **Distribution polish** — confirm `npm i -g` / `npx openshell` works end-to-end; flesh out
    the README + config docs.

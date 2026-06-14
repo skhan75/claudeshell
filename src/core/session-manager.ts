@@ -220,7 +220,7 @@ export class SessionManager {
   /**
    * Option C "editor satellite": open `file` in the user's own `$EDITOR`
    * (`VISUAL ?? EDITOR ?? "vi"`) as a dedicated terminal tab, optionally jumping to
-   * `line`. claudeshell never rebuilds the editor — it hands the file to the editor
+   * `line`. openshell never rebuilds the editor — it hands the file to the editor
    * the user already lives in, then disposes the tab automatically when they quit it,
    * returning focus to the tab they came from.
    */

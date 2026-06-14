@@ -1,11 +1,11 @@
-# claudeshell — Design Spec
+# openshell — Design Spec
 
 **Date:** 2026-06-12
 **Status:** Approved in brainstorm; pending implementation plan
 
 ## What it is
 
-claudeshell is a terminal TUI (text user interface) that wraps Claude Code, giving it a
+openshell is a terminal TUI (text user interface) that wraps Claude Code, giving it a
 visual, dashboard-style front end: multi-session tabs, a live context/telemetry panel
 (model, tokens, cost, MCP servers, host stats), quick-action pills, and fast keyboard
 navigation — styled as a dark cyberpunk terminal dashboard.
@@ -25,8 +25,8 @@ works across terminals).
 | Host panel | Local machine stats only (no remote nodes in v1) |
 | Pills | Shipped defaults + user-defined, global + per-project config |
 | Navigation | Command palette, Alt+number tab switching, vim-style transcript navigation, transcript/history search |
-| Config format | TOML (`~/.claudeshell/config.toml` global, `.claudeshell.toml` per project) |
-| Distribution | npm (`npm install -g claudeshell`), Node ≥ 18 |
+| Config format | TOML (`~/.openshell/config.toml` global, `.openshell.toml` per project) |
+| Distribution | npm (`npm install -g openshell`), Node ≥ 18 |
 
 ## Architecture
 
@@ -35,14 +35,14 @@ works across terminals).
 One Node process runs the TUI. Each session tab owns one Agent SDK `query()` call in
 **streaming input mode**; the SDK spawns and supervises a Claude Code subprocess per
 session. Closing a tab ends its subprocess; sessions remain resumable later by session ID.
-Quitting claudeshell persists tab state so the same tabs can be reopened (via SDK `resume`).
+Quitting openshell persists tab state so the same tabs can be reopened (via SDK `resume`).
 
 ### Layers
 
 **Core (headless — no UI imports, fully unit-testable):**
 
 - `SessionManager` — create/close/switch sessions; persists tab state to
-  `~/.claudeshell/state.json` (versioned schema).
+  `~/.openshell/state.json` (versioned schema).
 - `Session` — wraps one `query()`. Owns:
   - the transcript model (append-only list of rendered message blocks),
   - status: `idle | processing | awaiting-permission | awaiting-input | crashed`
@@ -127,7 +127,7 @@ plugins/custom commands appear automatically); cross-session history search.
 ### Pills
 
 ```toml
-# ~/.claudeshell/config.toml (global) + .claudeshell.toml (per project)
+# ~/.openshell/config.toml (global) + .openshell.toml (per project)
 [layout]
 default = "sidebar"   # or "zen"
 
@@ -174,8 +174,8 @@ permission updates) · **n** deny (with optional reason sent back to Claude).
 
 ## Packaging
 
-npm package `claudeshell` with a `bin` entry. `npm install -g claudeshell`; run
-`claudeshell` in any project directory. Node ≥ 18. Versioned config and state schemas.
+npm package `openshell` with a `bin` entry. `npm install -g openshell`; run
+`openshell` in any project directory. Node ≥ 18. Versioned config and state schemas.
 
 ## Out of scope for v1
 

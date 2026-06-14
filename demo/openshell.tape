@@ -1,6 +1,6 @@
-# Demo recording for claudeshell — produces demo/claudeshell.gif
-# Regenerate with:  vhs demo/claudeshell.tape   (requires vhs, ffmpeg, ttyd, chrome)
-Output "demo/claudeshell.gif"
+# Demo recording for openshell — produces demo/openshell.gif
+# Regenerate with:  vhs demo/openshell.tape   (requires vhs, ffmpeg, ttyd, chrome)
+Output "demo/openshell.gif"
 Set Shell "zsh"
 Set FontSize 13
 Set Width 1320
@@ -14,7 +14,7 @@ Enter
 Sleep 10s
 
 # A real turn — streaming response (fills the conversation)
-Type "In one short sentence, what is claudeshell?"
+Type "In one short sentence, what is openshell?"
 Enter
 Sleep 13s
 

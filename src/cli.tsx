@@ -18,7 +18,7 @@ const pExecFile = promisify(execFile);
 
 // Run as a full-screen "modal" app on its own alternate screen buffer (like
 // vim/less/htop): take over the screen on launch, and on quit tear it down so
-// the user is dropped back at a pristine prompt with zero claudeshell residue.
+// the user is dropped back at a pristine prompt with zero openshell residue.
 const useAltScreen = process.stdout.isTTY === true;
 let altActive = false;
 function enterAltScreen(): void {
@@ -46,7 +46,7 @@ async function preflight(): Promise<string | null> {
   } catch {
     return [
       "warning: could not run `claude --version` — is Claude Code installed and on PATH?",
-      "claudeshell runs on the bundled Agent SDK, but Claude Code is recommended for auth:",
+      "openshell runs on the bundled Agent SDK, but Claude Code is recommended for auth:",
       "  npm install -g @anthropic-ai/claude-code && claude  (then /login)",
     ].join("\n");
   }
@@ -58,14 +58,14 @@ async function main() {
 
   const cwd = process.cwd();
   const config = loadConfig({ cwd });
-  applyTheme(loadThemeOverrides(config.theme, join(homedir(), ".claudeshell", "themes")));
+  applyTheme(loadThemeOverrides(config.theme, join(homedir(), ".openshell", "themes")));
   // --dangerously-skip-permissions / --yolo (like the Claude CLI): run new sessions fully
   // autonomous (bypassPermissions), overriding config. A flag always wins over config.
   const yolo =
     process.argv.includes("--dangerously-skip-permissions") || process.argv.includes("--yolo");
   const defaultPermissionMode = yolo ? "bypassPermissions" : config.permissionMode;
   if (defaultPermissionMode === "bypassPermissions") {
-    console.error("⚠ claudeshell: permissions are BYPASSED — the agent runs autonomously without prompting.");
+    console.error("⚠ openshell: permissions are BYPASSED — the agent runs autonomously without prompting.");
   }
   const manager = new SessionManager({
     cwd,
@@ -77,7 +77,7 @@ async function main() {
 
   // E2E hook (testing only): seed the active session with N transcript lines so a launched
   // instance has scrollable content without a live model. Gated behind an env var.
-  const seedN = Number(process.env.CLAUDESHELL_E2E_SEED);
+  const seedN = Number(process.env.OPENSHELL_E2E_SEED);
   if (Number.isInteger(seedN) && seedN > 0) {
     for (let i = 0; i < seedN; i++) manager.active?.transcript.addInfo(`SEEDLINE-${i}`);
   }

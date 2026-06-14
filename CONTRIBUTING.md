@@ -1,4 +1,4 @@
-# Contributing to claudeshell
+# Contributing to openshell
 
 ## Dev setup
 
