@@ -9,6 +9,7 @@ import { effectiveSlashCommands, routeSlash } from "../core/slash-commands.js";
 import { execSlash } from "./execSlash.js";
 import * as edit from "../core/line-edit.js";
 import type { LineState } from "../core/line-edit.js";
+import { isMouseSequence } from "./selection.js";
 
 export function InputBar({ width: widthProp }: { width?: number } = {}) {
   const { manager, config, store } = useAppCtx();
@@ -125,6 +126,8 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
 
   useInput(
     (input, key) => {
+      // Ignore mouse reports — ChatPane owns them; they must never type into the composer.
+      if (isMouseSequence(input)) return;
       // Stand down while the Ctrl+Space tab-cycle leader is armed so ←/→ cycles tabs
       // (App handles it) instead of moving the caret.
       if (tabLeader) return;

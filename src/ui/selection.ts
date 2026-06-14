@@ -1,5 +1,15 @@
 import type { Line, Span } from "./wrap-spans.js";
 
+/** SGR mouse report, e.g. "[<32;10;5M" (Ink strips the leading ESC). Terminals can batch
+ *  several into one input chunk, so this is a non-anchored test. */
+const MOUSE_SEQ = /\[<\d+;\d+;\d+[Mm]/;
+
+/** True if `input` contains any SGR mouse report — text inputs must IGNORE these (so mouse
+ *  motion never leaks into the composer / a picker query); only ChatPane consumes them. */
+export function isMouseSequence(input: string | undefined): boolean {
+  return !!input && MOUSE_SEQ.test(input);
+}
+
 /** A cell in the visible chat grid: row = index into the on-screen lines, col = char column. */
 export interface Cell {
   row: number;

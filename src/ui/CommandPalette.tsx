@@ -6,6 +6,7 @@ import { fuzzyFilter } from "../core/fuzzy.js";
 import { searchHistory, type HistoryHit } from "../core/history-search.js";
 import { effectiveSlashCommands, routeSlash } from "../core/slash-commands.js";
 import { execSlash } from "./execSlash.js";
+import { isMouseSequence } from "./selection.js";
 
 export interface PaletteItem {
   label: string;
@@ -133,6 +134,7 @@ export function CommandPalette({ claudeDir }: { claudeDir?: string } = {}) {
   const clampedSel = Math.min(sel, Math.max(0, rows.length - 1));
 
   useInput((input, key) => {
+    if (isMouseSequence(input)) return; // never let mouse reports type into the query
     if (key.escape) {
       if (historyMode) {
         setHistoryMode(false);

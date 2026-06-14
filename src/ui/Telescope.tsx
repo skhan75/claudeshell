@@ -3,6 +3,7 @@ import { Box, Text, useInput, useStdout } from "ink";
 import { theme } from "./theme.js";
 import { Panel, SectionHeader } from "./chrome.js";
 import { fuzzyFilter } from "../core/fuzzy.js";
+import { isMouseSequence } from "./selection.js";
 
 export interface TelescopeItem {
   key: string;
@@ -42,6 +43,7 @@ export function Telescope<T extends TelescopeItem>({
   const highlighted = filtered[clampedSel];
 
   useInput((input, key) => {
+    if (isMouseSequence(input)) return; // mouse reports must not type into the filter
     if (key.escape) {
       onClose();
       return;

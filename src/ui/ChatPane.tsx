@@ -361,29 +361,35 @@ export function ChatPane({
       // Stand down while the Ctrl+Space tab-cycle leader is armed (App owns ←/→ then).
       if (tabLeader) return;
       // Mouse (only when capture is on): SGR reports arrive as input "[<btn;col;row;M|m"
-      // (Ink strips the leading ESC). Wheel (64/65) scrolls; left button press/drag/release
-      // drives an app-managed, themed text selection that copies to the clipboard on release.
+      // (Ink strips the ESC; terminals can BATCH several into one chunk). Decode the button
+      // by bit: 64=wheel, 32=motion, low 2 bits=which button (0=left). Wheel scrolls; a
+      // LEFT press/drag/release drives a themed selection that copies on release. Hover
+      // (motion with no left button, e.g. button 34) is ignored — never inserted as text.
       if (mouseScroll && input) {
-        const m = /\[<(\d+);(\d+);(\d+)([Mm])/.exec(input);
-        if (m) {
-          const btn = Number(m[1]);
-          const cell = { row: Number(m[3]) - 1 - originRow, col: Number(m[2]) - 1 - originCol };
-          const release = m[4] === "m";
-          if (btn === 64) { setOffset((o) => Math.min(maxOffset, o + 3)); return; } // wheel up
-          if (btn === 65) { setOffset((o) => Math.max(0, o - 3)); return; } // wheel down
-          if (btn === 0 && !release) { setSel({ anchor: cell, head: cell }); return; } // press
-          if (btn === 32 && !release) { setSel((s) => (s ? { anchor: s.anchor, head: cell } : s)); return; } // drag
-          if (release) { // finalize + copy
-            setSel((s) => {
-              if (!s) return s;
-              const done = { anchor: s.anchor, head: cell };
-              const text = selectionText(visible, done);
-              if (text) copy(text);
-              return done;
-            });
-            return;
+        const matches = [...input.matchAll(/\[<(\d+);(\d+);(\d+)([Mm])/g)];
+        if (matches.length) {
+          for (const mm of matches) {
+            const btn = Number(mm[1]);
+            const cell = { row: Number(mm[3]) - 1 - originRow, col: Number(mm[2]) - 1 - originCol };
+            const release = mm[4] === "m";
+            if (btn & 64) {
+              setOffset((o) => (btn & 1 ? Math.max(0, o - 3) : Math.min(maxOffset, o + 3)));
+            } else if (release) {
+              setSel((s) => {
+                if (!s) return s;
+                const done = { anchor: s.anchor, head: cell };
+                const text = selectionText(visible, done);
+                if (text) copy(text);
+                return done;
+              });
+            } else if (!(btn & 32) && (btn & 3) === 0) {
+              setSel({ anchor: cell, head: cell }); // left press → start selection
+            } else if (btn & 32 && (btn & 3) === 0) {
+              setSel((s) => (s ? { anchor: s.anchor, head: cell } : s)); // left drag → extend
+            }
+            // else: hover / other-button motion → ignore
           }
-          return; // swallow any other mouse event
+          return;
         }
       }
       // Esc clears an active selection (before other Esc handling).

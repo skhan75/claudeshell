@@ -417,6 +417,20 @@ describe("InputBar", () => {
     expect(ctx.manager.active!.transcript.blocks[0]).toMatchObject({ kind: "user", text: "aXbc" });
   });
 
+  it("ignores mouse SGR reports — mouse motion never types into the composer", async () => {
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("\x1b[<34;106;21M\x1b[<34;106;22M\x1b[<35;10;5M"); // batched mouse-move reports
+    await tick();
+    expect(lastFrame()).toContain("type a message…"); // nothing was inserted (placeholder remains)
+    stdin.write("ok"); // a real keystroke still types
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(ctx.manager.active!.transcript.blocks[0]).toMatchObject({ kind: "user", text: "ok" });
+  });
+
   it("Ctrl+A / Ctrl+E jump to line start / end", async () => {
     const ctx = makeCtx();
     const { stdin } = renderWithCtx(<InputBar />, ctx);

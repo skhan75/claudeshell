@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { theme } from "./theme.js";
+import { isMouseSequence } from "./selection.js";
 import type { PermissionRequest, PermissionResult } from "../core/types.js";
 
 function inputPreview(input: Record<string, unknown>): string {
@@ -22,6 +23,7 @@ export function PermissionDialog({ request }: { request: PermissionRequest }) {
   };
 
   useInput((input, key) => {
+    if (isMouseSequence(input)) return; // mouse reports must not type into the deny reason
     if (denying) {
       if (key.return) {
         resolveOnce({ behavior: "deny", message: reason.trim() || "User denied this action" });
@@ -121,6 +123,7 @@ export function QuestionDialog({ request }: { request: PermissionRequest }) {
   };
 
   useInput((input, key) => {
+    if (isMouseSequence(input)) return; // mouse reports must not type into the free answer
     if (!q) return;
     // Clamp sel so a zero-option question never dereferences undefined.
     const clampedSel = Math.min(sel, Math.max(0, q.options.length - 1));
