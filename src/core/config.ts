@@ -26,6 +26,9 @@ export interface Config {
   budget: BudgetCaps;
   /** Capture the mouse for trackpad/wheel scroll by default (costs mouse text-selection). */
   mouseScroll: boolean;
+  /** Default permission mode for new sessions. "bypassPermissions" = the CLI's
+   *  --dangerously-skip-permissions (fully autonomous; the agent never prompts). */
+  permissionMode: string;
 }
 
 const PERMISSION_MODES = new Set(["default", "acceptEdits", "bypassPermissions", "plan"]);
@@ -77,6 +80,7 @@ interface RawConfig {
   fleet?: { size?: number; permissionMode?: string };
   budget?: BudgetCaps;
   mouse?: { scroll?: boolean };
+  permissions?: { mode?: string; dangerouslySkip?: boolean };
 }
 
 function sanitize(raw: Record<string, unknown>): RawConfig {
@@ -125,6 +129,15 @@ function sanitize(raw: Record<string, unknown>): RawConfig {
   if (mouse && typeof mouse === "object" && typeof (mouse as { scroll?: unknown }).scroll === "boolean") {
     out.mouse = { scroll: (mouse as { scroll: boolean }).scroll };
   }
+  const perms = raw.permissions;
+  if (perms && typeof perms === "object") {
+    const p: { mode?: string; dangerouslySkip?: boolean } = {};
+    const mode = (perms as { mode?: unknown }).mode;
+    if (typeof mode === "string" && PERMISSION_MODES.has(mode)) p.mode = mode;
+    const skip = (perms as { dangerouslySkip?: unknown }).dangerouslySkip;
+    if (typeof skip === "boolean") p.dangerouslySkip = skip;
+    out.permissions = p;
+  }
   return out;
 }
 
@@ -165,5 +178,9 @@ export function loadConfig(opts: { globalDir?: string; cwd?: string } = {}): Con
     fleetPermissionMode: p.fleet?.permissionMode ?? g.fleet?.permissionMode ?? "default",
     budget: { ...sanitizeBudget(g.budget), ...sanitizeBudget(p.budget) },
     mouseScroll: p.mouse?.scroll ?? g.mouse?.scroll ?? false,
+    permissionMode:
+      p.permissions?.mode ??
+      g.permissions?.mode ??
+      ((p.permissions?.dangerouslySkip ?? g.permissions?.dangerouslySkip) ? "bypassPermissions" : "default"),
   };
 }

@@ -33,6 +33,19 @@ describe("loadConfig", () => {
     expect(loadConfig({ globalDir, cwd: projectDir }).mouseScroll).toBe(true);
   });
 
+  it("defaults permissionMode to 'default'", () => {
+    expect(loadConfig({ globalDir, cwd: projectDir }).permissionMode).toBe("default");
+  });
+
+  it("reads [permissions] mode (allowlisted) and dangerouslySkip → bypassPermissions", () => {
+    writeFileSync(join(projectDir, ".claudeshell.toml"), `[permissions]\nmode = "acceptEdits"\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).permissionMode).toBe("acceptEdits");
+    writeFileSync(join(projectDir, ".claudeshell.toml"), `[permissions]\ndangerouslySkip = true\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).permissionMode).toBe("bypassPermissions");
+    writeFileSync(join(projectDir, ".claudeshell.toml"), `[permissions]\nmode = "nonsense"\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).permissionMode).toBe("default"); // rejected
+  });
+
   it("reads an allowlisted [fleet] permissionMode and rejects unknown values", () => {
     writeFileSync(join(projectDir, ".claudeshell.toml"), `[fleet]\npermissionMode = "acceptEdits"\n`);
     expect(loadConfig({ globalDir, cwd: projectDir }).fleetPermissionMode).toBe("acceptEdits");

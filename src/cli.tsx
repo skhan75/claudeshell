@@ -59,10 +59,19 @@ async function main() {
   const cwd = process.cwd();
   const config = loadConfig({ cwd });
   applyTheme(loadThemeOverrides(config.theme, join(homedir(), ".claudeshell", "themes")));
+  // --dangerously-skip-permissions / --yolo (like the Claude CLI): run new sessions fully
+  // autonomous (bypassPermissions), overriding config. A flag always wins over config.
+  const yolo =
+    process.argv.includes("--dangerously-skip-permissions") || process.argv.includes("--yolo");
+  const defaultPermissionMode = yolo ? "bypassPermissions" : config.permissionMode;
+  if (defaultPermissionMode === "bypassPermissions") {
+    console.error("⚠ claudeshell: permissions are BYPASSED — the agent runs autonomously without prompting.");
+  }
   const manager = new SessionManager({
     cwd,
     statePath: statePathFor(cwd),
     budget: config.budget,
+    defaultPermissionMode,
   });
   manager.restoreState();
 

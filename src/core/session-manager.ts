@@ -35,6 +35,8 @@ export interface ManagerOpts {
   queryFn?: QueryFn;
   /** Initial cost-guard caps (from config); persisted caps win over these on restore. */
   budget?: BudgetCaps;
+  /** Default permission mode for new/restored sessions ("bypassPermissions" = autonomous). */
+  defaultPermissionMode?: string;
 }
 
 export class SessionManager {
@@ -130,7 +132,7 @@ export class SessionManager {
       resumeSessionId: init?.resumeSessionId,
       title: init?.title,
       group: init?.group,
-      permissionMode: init?.permissionMode,
+      permissionMode: init?.permissionMode ?? this.opts.defaultPermissionMode,
       forkSession: init?.forkSession,
       onChange: () => this.onSessionChange(session),
     });
@@ -349,6 +351,7 @@ export class SessionManager {
           queryFn: this.opts.queryFn,
           resumeSessionId: saved.claudeSessionId,
           title: saved.title,
+          permissionMode: this.opts.defaultPermissionMode,
           onChange: () => this.onSessionChange(session),
         });
         this.tabs.push(session);

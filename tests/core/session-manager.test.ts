@@ -387,6 +387,19 @@ describe("SessionManager", () => {
     expect(m.active?.id).toBe(caller.id);
   });
 
+  it("defaultPermissionMode seeds new + restored sessions (autonomous bypass)", () => {
+    const statePath = tmpState();
+    const m = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery, defaultPermissionMode: "bypassPermissions" });
+    expect(m.create().permissionMode).toBe("bypassPermissions");
+    // An explicit per-session override (e.g. a fleet worker) still wins.
+    expect(m.create({ permissionMode: "plan" }).permissionMode).toBe("plan");
+    // Restored sessions also adopt the default.
+    m.saveState();
+    const m2 = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery, defaultPermissionMode: "bypassPermissions" });
+    m2.restoreState();
+    expect(m2.tabs.every((t) => t.kind !== "claude" || t.permissionMode === "bypassPermissions")).toBe(true);
+  });
+
   it("spawnWorkers threads permissionMode to each worker", () => {
     const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
     m.create();
