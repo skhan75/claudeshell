@@ -7,6 +7,8 @@ import { fuzzyFilter } from "../core/fuzzy.js";
 import { listProjectFilesCached } from "../core/files.js";
 import { effectiveSlashCommands, routeSlash } from "../core/slash-commands.js";
 import { execSlash } from "./execSlash.js";
+import * as edit from "../core/line-edit.js";
+import type { LineState } from "../core/line-edit.js";
 
 export function InputBar({ width: widthProp }: { width?: number } = {}) {
   const { manager, config, store } = useAppCtx();
@@ -15,6 +17,7 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
   const paletteOpen = useApp((s) => s.paletteOpen);
   const { stdout } = useStdout();
   const [text, setText] = useState("");
+  const [cursor, setCursor] = useState(0); // caret index into `text`
   // Selection index into the currently-shown suggestion list (whichever picker
   // is active). Reset to 0 whenever the query changes so it never dangles past
   // the end of a shrunk list.
@@ -69,9 +72,27 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
     !manager.active?.pendingPermission &&
     session?.status !== "crashed";
 
+  // Set the whole line (caret defaults to the end) — used by history recall + picker insert.
+  const setLine = (t: string, c: number = t.length) => {
+    setText(t);
+    setCursor(c);
+  };
+  // Apply a pure line-edit op to the current { text, cursor }.
+  const applyEdit = (fn: (s: LineState) => LineState) => {
+    const next = fn({ text, cursor });
+    setText(next.text);
+    setCursor(next.cursor);
+  };
+  // A text-changing edit also resets the picker selection / dismiss / history index.
+  const editText = (fn: (s: LineState) => LineState) => {
+    applyEdit(fn);
+    setSel(0);
+    setDismissed(false);
+    setHistIdx(null);
+  };
   // Replace text with a new value as a fresh query; reset selection.
   const setQuery = (next: string) => {
-    setText(next);
+    setLine(next);
     setSel(0);
     setDismissed(false);
   };
@@ -83,7 +104,7 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
   const runSlash = (cmd: string): boolean => execSlash(routeSlash(cmd), { manager, config, store });
 
   const clearInput = () => {
-    setText("");
+    setLine("");
     setSel(0);
     setDismissed(false);
     setHistIdx(null);
@@ -149,7 +170,7 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
       if (key.upArrow) {
         if (history.length === 0) return;
         const idx = histIdx === null ? history.length - 1 : Math.max(0, histIdx - 1);
-        setText(history[idx]);
+        setLine(history[idx]);
         setHistIdx(idx);
         setSel(0);
         setDismissed(false);
@@ -159,11 +180,11 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
         if (histIdx === null) return;
         if (histIdx < history.length - 1) {
           const idx = histIdx + 1;
-          setText(history[idx]);
+          setLine(history[idx]);
           setHistIdx(idx);
         } else {
           setHistIdx(null);
-          setText("");
+          setLine("");
         }
         setSel(0);
         setDismissed(false);
@@ -175,19 +196,18 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
         if (picker) insertSelected();
         return;
       }
-      if (key.backspace || key.delete) {
-        setText((t) => t.slice(0, -1));
-        setSel(0);
-        setDismissed(false);
-        setHistIdx(null);
-        return;
-      }
-      if (input && !key.ctrl && !key.meta) {
-        setText((t) => t + input);
-        setSel(0);
-        setDismissed(false);
-        setHistIdx(null);
-      }
+      // --- caret motion (no text change) — char-wise, or word-wise with Option/Alt ---
+      if (key.leftArrow) { applyEdit(key.meta ? edit.moveWordLeft : edit.moveLeft); return; }
+      if (key.rightArrow) { applyEdit(key.meta ? edit.moveWordRight : edit.moveRight); return; }
+      if (key.ctrl && input === "a") { applyEdit(edit.moveHome); return; } // line start
+      // --- fast deletes (editor-like) ---
+      if (key.meta && (key.backspace || key.delete)) { editText(edit.deleteWordLeft); return; } // Option+Delete
+      if (key.ctrl && input === "w") { editText(edit.deleteWordLeft); return; } // Ctrl+W: word back
+      if (key.ctrl && input === "u") { editText(edit.deleteToStart); return; } // Ctrl+U: to line start
+      if (key.ctrl && input === "d") { editText(edit.del); return; } // Ctrl+D: forward delete
+      if (key.backspace || key.delete) { editText(edit.backspace); return; }
+      // --- printable insert at the caret ---
+      if (input && !key.ctrl && !key.meta) { editText((s) => edit.insert(s, input)); return; }
     },
     { isActive }
   );
@@ -201,22 +221,32 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
   const boxWidth = widthProp ?? Math.max(24, cols - SIDEBAR_WIDTH - 2);
   const inner = Math.max(8, boxWidth - 2); // cells inside the round border
   const PLACEHOLDER = "type a message…";
-  // Single-line input: when the text outgrows the line, show its tail (like a real
-  // input field) so the caret stays visible instead of wrapping the box taller.
-  const maxText = Math.max(1, inner - 4); // " ▸ " prefix + caret
-  const shownText = text.length > maxText ? text.slice(text.length - maxText) : text;
-  const visibleLen =
-    1 /* lead space */ + 2 /* "▸ " */ + shownText.length +
-    (focused ? 1 : 0) + (text === "" ? PLACEHOLDER.length : 0);
+  // Single-line view that scrolls horizontally so the caret stays visible; the caret
+  // renders as a block on the character under it (or a bar at end-of-line).
+  const maxText = Math.max(1, inner - 4); // " ▸ " prefix + caret cell
+  const { slice, caret } = edit.windowText(text, cursor, maxText);
+  const atEnd = caret >= slice.length;
+  const pre = slice.slice(0, caret);
+  const curCh = atEnd ? "" : slice[caret];
+  const post = atEnd ? "" : slice.slice(caret + 1);
+  const caretCells = atEnd ? (focused ? 1 : 0) : 1;
+  const contentLen = 1 + 2 + pre.length + caretCells + post.length + (text === "" ? PLACEHOLDER.length : 0);
 
   return (
     <Box flexDirection="column">
       <Box borderStyle="round" borderColor={focused ? INPUT_BORDER_FOCUS : INPUT_BORDER} width={boxWidth}>
-        <FilledLine bg={INPUT_BG} trail={inner - visibleLen}>
+        <FilledLine bg={INPUT_BG} trail={inner - contentLen}>
           <Text> </Text>
           <Text color={theme.accent} bold>▸ </Text>
-          <Text color={theme.fg}>{shownText}</Text>
-          {focused && <Text color={theme.accent}>▋</Text>}
+          <Text color={theme.fg}>{pre}</Text>
+          {!atEnd &&
+            (focused ? (
+              <Text inverse color={theme.accent}>{curCh}</Text>
+            ) : (
+              <Text color={theme.fg}>{curCh}</Text>
+            ))}
+          {!atEnd && <Text color={theme.fg}>{post}</Text>}
+          {atEnd && focused && <Text color={theme.accent}>▋</Text>}
           {text === "" && <Text color={theme.dim}>{PLACEHOLDER}</Text>}
         </FilledLine>
       </Box>

@@ -367,6 +367,71 @@ describe("InputBar", () => {
     expect(blocks[0]).toMatchObject({ kind: "user", text: "just a normal prompt" });
   });
 
+  // --- editor-like editing in the composer ---
+
+  it("Ctrl+W deletes the previous word", async () => {
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("hello world");
+    await tick();
+    stdin.write("\x17"); // Ctrl+W
+    await tick();
+    expect(lastFrame()).toContain("▸ hello");
+    expect(lastFrame()).not.toContain("world");
+  });
+
+  it("Ctrl+U deletes from the caret to the start of the line", async () => {
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("abcdef");
+    await tick();
+    stdin.write("\x1b[D"); // left
+    await tick();
+    stdin.write("\x1b[D"); // left
+    await tick();
+    stdin.write("\x1b[D"); // left → caret now before "def"
+    await tick();
+    stdin.write("\x15"); // Ctrl+U → delete "abc", keep "def"
+    await tick();
+    stdin.write("\r"); // submit
+    await tick();
+    expect(ctx.manager.active!.transcript.blocks[0]).toMatchObject({ kind: "user", text: "def" });
+  });
+
+  it("left arrow + typing inserts at the caret (mid-line edit)", async () => {
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("abc");
+    await tick();
+    stdin.write("\x1b[D"); // left
+    await tick();
+    stdin.write("\x1b[D"); // left → caret before "b" (index 1)
+    await tick();
+    stdin.write("X"); // insert → "aXbc"
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(ctx.manager.active!.transcript.blocks[0]).toMatchObject({ kind: "user", text: "aXbc" });
+  });
+
+  it("Ctrl+A jumps to line start, then typing prepends", async () => {
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("world");
+    await tick();
+    stdin.write("\x01"); // Ctrl+A → home
+    await tick();
+    stdin.write("X");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(ctx.manager.active!.transcript.blocks[0]).toMatchObject({ kind: "user", text: "Xworld" });
+  });
+
   it("Esc dismisses the @ picker so the next Enter sends normally", async () => {
     const ctx = makeCtx();
     const cwd = ctx.manager.active!.cwd;
