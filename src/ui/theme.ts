@@ -10,6 +10,8 @@ export interface Theme {
   good: string;
   bad: string;
   fg: string;
+  /** Background for app-managed text selection (overridable via the theme TOML). */
+  selection: string;
 }
 
 export const CYBERPUNK: Theme = {
@@ -20,6 +22,7 @@ export const CYBERPUNK: Theme = {
   good: "#7ce38b",
   bad: "#f07178",
   fg: "#dbe6f5",
+  selection: "#2d4a73",
 };
 
 const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;

@@ -1,12 +1,33 @@
 import React, { useEffect, useState } from "react";
+import { execFile } from "node:child_process";
 import { Box, Text, useInput, useStdout } from "ink";
 import { useApp, useAppCtx } from "./context.js";
 import { theme } from "./theme.js";
 import { renderMarkdown } from "./markdown.js";
 import { wrapSpans, lineText, type Span, type Line } from "./wrap-spans.js";
+import { applySelectionBg, rowSpan, selectionText, type Range as SelRange } from "./selection.js";
 import { SIDEBAR_WIDTH } from "./chrome.js";
 import type { TranscriptBlock } from "../core/types.js";
 import type { Layout } from "../store.js";
+
+/** Default clipboard writer: pbcopy on macOS, OSC 52 elsewhere (works over SSH/tmux). */
+function clipboardWrite(text: string): void {
+  if (process.platform === "darwin") {
+    try {
+      const p = execFile("pbcopy");
+      p.stdin?.end(text);
+      return;
+    } catch {
+      /* fall through to OSC 52 */
+    }
+  }
+  try {
+    const b64 = Buffer.from(text, "utf8").toString("base64");
+    if (process.stdout.isTTY) process.stdout.write(`\x1b]52;c;${b64}\x07`);
+  } catch {
+    /* best effort */
+  }
+}
 
 export type { Span, Line };
 
@@ -234,7 +255,20 @@ function cachedBlockLines(b: TranscriptBlock, width: number, expandTools = false
   return lines;
 }
 
-export function ChatPane({ height: heightProp, width: widthProp }: { height?: number; width?: number }) {
+export function ChatPane({
+  height: heightProp,
+  width: widthProp,
+  originRow = 0,
+  originCol = 0,
+  copy = clipboardWrite,
+}: {
+  height?: number;
+  width?: number;
+  /** Screen row/col (0-based) of this pane's top-left — lets mouse coords map to content. */
+  originRow?: number;
+  originCol?: number;
+  copy?: (text: string) => void;
+}) {
   const { manager } = useAppCtx();
   useApp((s) => s.version);
   const focus = useApp((s) => s.focus);
@@ -258,12 +292,14 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
   // n/N cycle through ALL matches instead of re-deriving from viewport top.
   const [matchIdx, setMatchIdx] = useState(0);
   const [expandTools, setExpandTools] = useState(false); // expand all truncated tool output
+  const [sel, setSel] = useState<SelRange | null>(null); // app-managed mouse text selection
 
   useEffect(() => {
     setOffset(0);
     setSearch({ active: false, query: "" });
     setMatchIdx(0);
     setExpandTools(false);
+    setSel(null);
   }, [session?.id]);
 
   // PERF(v1.1): rebuilt on every render; during streaming this re-renders the whole
@@ -291,6 +327,9 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
   const maxOffset = Math.max(0, lines.length - height);
   const effOffset = Math.min(offset, maxOffset); // clamp a stale offset after a resize
   const overflow = maxOffset > 0;
+  // The on-screen window (computed early so the mouse handler can map clicks to content).
+  const start = Math.max(0, lines.length - height - effOffset);
+  const visible = lines.slice(start, start + height);
 
   // Snap back to the latest whenever the user sends a new prompt, so the reply is
   // visible even if they had scrolled up to read earlier history while composing.
@@ -321,18 +360,34 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
     (input, key) => {
       // Stand down while the Ctrl+Space tab-cycle leader is armed (App owns ←/→ then).
       if (tabLeader) return;
-      // Mouse wheel / trackpad (only when capture is on): SGR mouse reports arrive as
-      // input like "[<64;x;y;M" (Ink strips the leading ESC). Button 64 = wheel up
-      // (scroll toward older), 65 = wheel down (toward latest); swallow other mouse events.
+      // Mouse (only when capture is on): SGR reports arrive as input "[<btn;col;row;M|m"
+      // (Ink strips the leading ESC). Wheel (64/65) scrolls; left button press/drag/release
+      // drives an app-managed, themed text selection that copies to the clipboard on release.
       if (mouseScroll && input) {
-        const m = /\[<(\d+);\d+;\d+[Mm]/.exec(input);
+        const m = /\[<(\d+);(\d+);(\d+)([Mm])/.exec(input);
         if (m) {
           const btn = Number(m[1]);
-          if (btn === 64) setOffset((o) => Math.min(maxOffset, o + 3));
-          else if (btn === 65) setOffset((o) => Math.max(0, o - 3));
-          return;
+          const cell = { row: Number(m[3]) - 1 - originRow, col: Number(m[2]) - 1 - originCol };
+          const release = m[4] === "m";
+          if (btn === 64) { setOffset((o) => Math.min(maxOffset, o + 3)); return; } // wheel up
+          if (btn === 65) { setOffset((o) => Math.max(0, o - 3)); return; } // wheel down
+          if (btn === 0 && !release) { setSel({ anchor: cell, head: cell }); return; } // press
+          if (btn === 32 && !release) { setSel((s) => (s ? { anchor: s.anchor, head: cell } : s)); return; } // drag
+          if (release) { // finalize + copy
+            setSel((s) => {
+              if (!s) return s;
+              const done = { anchor: s.anchor, head: cell };
+              const text = selectionText(visible, done);
+              if (text) copy(text);
+              return done;
+            });
+            return;
+          }
+          return; // swallow any other mouse event
         }
       }
+      // Esc clears an active selection (before other Esc handling).
+      if (key.escape && sel) { setSel(null); return; }
       // Page keys scroll the transcript from ANY focus — you can flick through the
       // backlog while still composing in the input bar (no mode switch needed).
       if (key.pageUp) {
@@ -371,8 +426,6 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
     { isActive: !paletteOpen && !manager.active?.pendingPermission }
   );
 
-  const start = Math.max(0, lines.length - height - effOffset);
-  const visible = lines.slice(start, start + height);
   const q = search.query.toLowerCase();
   const searchRow = search.active || search.query !== "";
   const scrolledRow = overflow && effOffset > 0;
@@ -394,7 +447,10 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
         <Box flexDirection="column" width={contentWidth}>
           {visible.map((l, i) => {
             const hit = q !== "" && lineText(l).toLowerCase().includes(q);
-            const spans = l.spans.length ? l.spans : [{ text: " " } as Span];
+            // Overlay the themed selection background on the selected column range, if any.
+            const selSpan = sel ? rowSpan(sel, i, lineText(l).length) : null;
+            const rendered = selSpan ? applySelectionBg(l, selSpan.from, selSpan.to, theme.selection) : l;
+            const spans = rendered.spans.length ? rendered.spans : [{ text: " " } as Span];
             return (
               <Box key={start + i}>
                 {spans.map((s, j) => (

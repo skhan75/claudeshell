@@ -110,9 +110,10 @@ export function App() {
   // and guarded on isTTY so it no-ops in tests. (cli.tsx also disables on hard exit.)
   useEffect(() => {
     if (!process.stdout.isTTY) return;
-    process.stdout.write(mouseScroll ? "\x1b[?1000h\x1b[?1006h" : "\x1b[?1000l\x1b[?1006l");
+    // 1002 = button + drag motion (wheel + click-drag for selection); 1006 = SGR coords.
+    process.stdout.write(mouseScroll ? "\x1b[?1002h\x1b[?1006h" : "\x1b[?1002l\x1b[?1000l\x1b[?1006l");
     return () => {
-      if (process.stdout.isTTY) process.stdout.write("\x1b[?1000l\x1b[?1006l");
+      if (process.stdout.isTTY) process.stdout.write("\x1b[?1002l\x1b[?1000l\x1b[?1006l");
     };
   }, [mouseScroll]);
 
@@ -383,7 +384,7 @@ export function App() {
             <TerminalPane height={mainHeight} onQuit={inkExit} />
           ) : (
             <Box flexDirection="column" flexGrow={1}>
-              <ChatPane height={chatHeight} width={chatWidth} />
+              <ChatPane height={chatHeight} width={chatWidth} originRow={headerRows} originCol={leftCols} />
               {pending ? (
                 pending.toolName === "AskUserQuestion" ? (
                   <QuestionDialog key={pending.id} request={pending} />

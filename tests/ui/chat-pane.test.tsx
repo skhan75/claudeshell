@@ -366,6 +366,29 @@ describe("ChatPane — scrolling", () => {
     expect(lastFrame()).not.toContain("out-39");
   });
 
+  it("mouse click-drag selects text across lines and copies it (themed selection)", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    s.transcript.addInfo("ZERO line");
+    s.transcript.addInfo("ONE line");
+    s.transcript.addInfo("TWO line");
+    ctx.store.getState().setMouseScroll(true);
+    ctx.store.getState().bump();
+    const copied: string[] = [];
+    const { stdin } = renderWithCtx(
+      <ChatPane height={20} originRow={0} originCol={0} copy={(t) => copied.push(t)} />,
+      ctx,
+    );
+    await tick();
+    stdin.write("\x1b[<0;1;1M"); // left press at col1,row1 → cell (0,0)
+    await tick();
+    stdin.write("\x1b[<32;4;3M"); // drag (button held) to col4,row3 → cell (2,3)
+    await tick();
+    stdin.write("\x1b[<0;4;3m"); // release → copy
+    await tick();
+    expect(copied).toEqual(["ZERO line\nONE line\nTWO"]);
+  });
+
   it("draws a right-edge scrollbar only when the transcript overflows", async () => {
     const ctx = makeCtx();
     const s = ctx.manager.active!;
