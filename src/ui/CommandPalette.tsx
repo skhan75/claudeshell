@@ -69,11 +69,14 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
   const slashCommands = effectiveSlashCommands(session?.transcript.meta.slashCommands ?? []);
   for (const cmd of slashCommands) {
     const overlay = APP_SLASH_OVERLAY[cmd];
-    items.push({
-      label: `slash: ${cmd}`,
-      // App-handled commands open their overlay; the rest are sent to the session.
-      run: overlay ? () => store.getState().setOverlay(overlay) : () => session?.send(cmd),
-    });
+    // App-handled commands run a real action; everything else (agent skills/plugins) is
+    // sent to the session, which genuinely invokes them.
+    const run = overlay
+      ? () => store.getState().setOverlay(overlay)
+      : cmd === "/clear"
+        ? () => session?.reset()
+        : () => session?.send(cmd);
+    items.push({ label: `slash: ${cmd}`, run });
   }
 
   return items;

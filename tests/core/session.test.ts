@@ -95,6 +95,25 @@ describe("Session", () => {
     expect(s.mcpStatus).toEqual([]);
   });
 
+  it("reset() clears the conversation and starts a fresh (non-resumed) session", async () => {
+    const s = new Session({
+      id: "s1", cwd: "/tmp",
+      queryFn: scriptedQuery([
+        { type: "system", subtype: "init", session_id: "old-claude-id" },
+        { type: "assistant", message: { content: [{ type: "text", text: "hi" }] } },
+        { type: "result", subtype: "success", num_turns: 1 },
+      ]),
+    });
+    s.send("hello");
+    await vi.waitFor(() => expect(s.status).toBe("idle"));
+    expect(s.transcript.blocks.length).toBeGreaterThan(0);
+    expect(s.claudeSessionId).toBe("old-claude-id");
+    s.reset();
+    expect(s.transcript.blocks).toHaveLength(0); // context wiped
+    expect(s.claudeSessionId).toBeUndefined(); // not resuming the old context
+    expect(s.status).toBe("idle");
+  });
+
   it("queues messages sent while a turn is already processing", () => {
     const s = new Session({ id: "s1", cwd: "/tmp", queryFn: scriptedQuery([]) });
     s.send("first");

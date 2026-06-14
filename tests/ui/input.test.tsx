@@ -60,18 +60,33 @@ describe("InputBar", () => {
     expect(blocks[0]).toMatchObject({ kind: "user", text: "hi claude" });
   });
 
-  it("offers built-in slash commands on a fresh session before the SDK init", async () => {
+  it("offers the app-handled built-in commands on a fresh session before the SDK init", async () => {
     const ctx = makeCtx();
     const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
     await tick();
-    stdin.write("/"); // no init yet → built-in fallback list
+    stdin.write("/"); // no init yet → built-in fallback list (only what we implement)
     await tick();
     expect(lastFrame()).toContain("/clear");
-    expect(lastFrame()).toContain("/compact");
+    expect(lastFrame()).toContain("/help");
     // typing narrows to a specific command
     stdin.write("model");
     await tick();
     expect(lastFrame()).toContain("/model");
+  });
+
+  it("/clear resets the conversation instead of being sent as a prompt", async () => {
+    const ctx = makeCtx();
+    ctx.manager.active!.transcript.addUser("an old message");
+    expect(ctx.manager.active!.transcript.blocks.length).toBeGreaterThan(0);
+    const { stdin } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("/clear");
+    await tick();
+    stdin.write("\x1b"); // dismiss the picker so the next Enter submits
+    await tick();
+    stdin.write("\r"); // submit "/clear" → resets, not sent
+    await tick();
+    expect(ctx.manager.active!.transcript.blocks).toHaveLength(0); // conversation cleared
   });
 
   it("merges the SDK's live plugin commands with the built-ins, navigable", async () => {
@@ -110,9 +125,9 @@ describe("InputBar", () => {
     ctx.store.getState().bump();
     const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
     await tick();
-    stdin.write("/compact"); // a built-in still surfaces alongside plugin commands
+    stdin.write("/clear"); // a built-in still surfaces alongside plugin commands
     await tick();
-    expect(lastFrame()).toContain("/compact");
+    expect(lastFrame()).toContain("/clear");
   });
 
   it("/model opens the model picker overlay instead of being sent as a prompt", async () => {

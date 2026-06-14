@@ -368,6 +368,32 @@ export class Session {
     await this.refreshMcpStatus();
   }
 
+  /**
+   * Clear the conversation (like the CLI's /clear): drop the transcript + context and
+   * start a fresh Claude session with NO resume, so the context window resets. Keeps
+   * the tab and its title; warms a new query eagerly.
+   */
+  reset(): void {
+    void this.handle?.close?.();
+    this.drainPermissions("conversation cleared");
+    this.queue?.end();
+    this.queue = null;
+    this.handle = null;
+    this.started = false;
+    this.transcript = new Transcript();
+    this.status = "idle";
+    this.turnStartedAt = null;
+    this.queuedCount = 0;
+    this.capabilitiesFetched = false;
+    this.availableModels = [];
+    this.account = null;
+    this.mcpStatus = [];
+    this.claudeId = undefined; // fresh Claude session — do not resume the old context
+    this.error = null;
+    this.onChange();
+    this.ensureStarted();
+  }
+
   /** Recover a crashed tab: next send() starts a fresh query resuming the same Claude session. */
   resume(): void {
     if (this.status !== "crashed") return;

@@ -1,44 +1,14 @@
 /**
- * Built-in Claude Code slash commands, used as a fallback for autocomplete/discovery
- * until the SDK reports the session's live `slash_commands` (which supersedes this
- * the moment a session initializes — so custom/project commands still surface, and
- * we never claim a command the live session doesn't actually offer once it's known).
+ * The built-in CLI slash commands claudeshell ACTUALLY implements. The interactive
+ * `claude` CLI has many more (/vim, /doctor, /config, /cost, /rewind, …) but those are
+ * handled by the CLI's terminal UI, NOT the Agent SDK's query() — sending them does
+ * nothing ("isn't available in this environment"). So we only advertise the ones we
+ * wire to a real action here; the SDK's live `slash_commands` (agent skills/plugins
+ * like /superpowers:*) merge in on top and genuinely work.
  *
  * Leading "/" included; kept alphabetical so the inline picker reads predictably.
  */
-export const DEFAULT_SLASH_COMMANDS: string[] = [
-  "/add-dir",
-  "/agents",
-  "/bashes",
-  "/btw",
-  "/bug",
-  "/clear",
-  "/compact",
-  "/config",
-  "/context",
-  "/cost",
-  "/doctor",
-  "/export",
-  "/feedback",
-  "/help",
-  "/hooks",
-  "/init",
-  "/mcp",
-  "/memory",
-  "/model",
-  "/output-style",
-  "/permissions",
-  "/pr-comments",
-  "/release-notes",
-  "/resume",
-  "/review",
-  "/rewind",
-  "/status",
-  "/statusline",
-  "/todos",
-  "/usage",
-  "/vim",
-];
+export const DEFAULT_SLASH_COMMANDS: string[] = ["/clear", "/help", "/model"];
 
 /**
  * The slash commands to offer: the built-in Claude commands first (the familiar

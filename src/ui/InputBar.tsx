@@ -75,12 +75,17 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
     setDismissed(false);
   };
 
-  // App-handled slash commands route to their overlay (model picker, help, …) since
-  // the SDK query can't run CLI slash commands. Returns true if it handled the command.
+  // App-handled slash commands run a real action (the SDK query can't run CLI slash
+  // commands). Returns true if it handled the command.
   const runSlash = (cmd: string): boolean => {
-    const ov = APP_SLASH_OVERLAY[cmd.trim()];
+    const c = cmd.trim();
+    const ov = APP_SLASH_OVERLAY[c];
     if (ov) {
       store.getState().setOverlay(ov);
+      return true;
+    }
+    if (c === "/clear") {
+      manager.active?.reset();
       return true;
     }
     return false;
