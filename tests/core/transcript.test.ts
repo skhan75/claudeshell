@@ -14,6 +14,19 @@ describe("Transcript", () => {
     expect(t.meta.slashCommands).toContain("/commit");
   });
 
+  it("ignores the SDK's <synthetic> placeholder model (eager-warmup noise)", () => {
+    const t = new Transcript();
+    // The no-prompt warmup init reports "<synthetic>" — must NOT become the model.
+    t.apply({ type: "system", subtype: "init", session_id: "s", model: "<synthetic>" });
+    expect(t.meta.model).toBeUndefined();
+    // A synthetic assistant message must not set it either.
+    t.apply({ type: "assistant", message: { content: [{ type: "text", text: "x" }], model: "<synthetic>" } });
+    expect(t.meta.model).toBeUndefined();
+    // A real model id is accepted.
+    t.apply({ type: "assistant", message: { content: [{ type: "text", text: "y" }], model: "claude-opus-4-8" } });
+    expect(t.meta.model).toBe("claude-opus-4-8");
+  });
+
   it("replaces streaming text on partial_assistant, finalizes on assistant", () => {
     const t = new Transcript();
     t.addUser("hello");

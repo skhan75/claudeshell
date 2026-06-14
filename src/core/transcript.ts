@@ -29,6 +29,16 @@ function summarize(name: string, input: Record<string, unknown> | undefined): st
   return s.length > 60 ? s.slice(0, 57) + "…" : s;
 }
 
+/**
+ * The SDK stamps system/warmup-generated messages with a placeholder model like
+ * "<synthetic>" (angle-bracketed). Those aren't a real model, so we ignore them —
+ * the displayed model stays the user's configured/selected one until a real turn
+ * reports an actual model id.
+ */
+function isRealModel(m: unknown): m is string {
+  return typeof m === "string" && m.length > 0 && !m.startsWith("<");
+}
+
 export class Transcript {
   blocks: TranscriptBlock[] = [];
   usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: 0, lastTurnCostUsd: 0, turns: 0, contextTokens: 0 };
@@ -56,8 +66,9 @@ export class Transcript {
 
   apply(msg: SdkMessage): void {
     if (msg.type === "system" && msg.subtype === "init") {
-      // server-reported model wins over a user selection — displayed model is SDK truth
-      this.meta.model = msg.model ?? this.meta.model;
+      // server-reported model wins over a user selection — but ignore "<synthetic>"
+      // and other placeholders the SDK emits during the no-prompt eager warmup.
+      if (isRealModel(msg.model)) this.meta.model = msg.model;
       this.meta.mcpServers = msg.mcp_servers ?? this.meta.mcpServers;
       this.meta.slashCommands = msg.slash_commands ?? this.meta.slashCommands;
       return;
@@ -124,7 +135,7 @@ export class Transcript {
         this.usage.cacheReadTokens += u.cache_read_input_tokens ?? 0;
         this.usage.contextTokens = (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
       }
-      this.meta.model = msg.message?.model ?? this.meta.model;
+      if (isRealModel(msg.message?.model)) this.meta.model = msg.message.model;
       const err = (msg as { error?: unknown }).error;
       if (err !== undefined) {
         this.addInfo(`✖ ${typeof err === "string" ? err : JSON.stringify(err)}`);
