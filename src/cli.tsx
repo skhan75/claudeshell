@@ -75,7 +75,16 @@ async function main() {
   });
   manager.restoreState();
 
-  const store = createAppStore(config.layout, config.mouseScroll);
+  // E2E hook (testing only): seed the active session with N transcript lines so a launched
+  // instance has scrollable content without a live model. Gated behind an env var.
+  const seedN = Number(process.env.CLAUDESHELL_E2E_SEED);
+  if (Number.isInteger(seedN) && seedN > 0) {
+    for (let i = 0; i < seedN; i++) manager.active?.transcript.addInfo(`SEEDLINE-${i}`);
+  }
+
+  // --mouse forces mouse capture on at launch (otherwise it follows [mouse] scroll in config).
+  const mouseFlag = process.argv.includes("--mouse");
+  const store = createAppStore(config.layout, config.mouseScroll || mouseFlag);
 
   const monitor = new SystemMonitor(cwd);
   monitor.start(5000, (stats) => store.getState().setHostStats(stats));

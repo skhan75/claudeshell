@@ -220,6 +220,29 @@ describe("App overlays + onboarding", () => {
     expect(lastFrame()).toContain("BUFFERS · OPEN TABS");
   });
 
+  it("mouse wheel scrolls the chat end-to-end in the full app when capture is on", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    for (let i = 0; i < 60; i++) s.transcript.addInfo(`SEEDLINE-${i}`);
+    ctx.store.getState().setMouseScroll(true);
+    ctx.store.getState().bump();
+    const { lastFrame, stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    expect(lastFrame()).toContain("SEEDLINE-59"); // starts pinned to the bottom
+    // Feed SGR wheel-up events (button 64) — a two-finger trackpad scroll up.
+    for (let i = 0; i < 8; i++) {
+      stdin.write("\x1b[<64;20;10M");
+      await tick();
+    }
+    expect(lastFrame()).not.toContain("SEEDLINE-59"); // scrolled up, latest now off-screen
+    // Wheel-down (65) returns toward the latest.
+    for (let i = 0; i < 12; i++) {
+      stdin.write("\x1b[<65;20;10M");
+      await tick();
+    }
+    expect(lastFrame()).toContain("SEEDLINE-59");
+  });
+
   it("ctrl+f opens the fleet overlay and gates the global keys while open", async () => {
     const ctx = makeCtx();
     const { stdin, lastFrame } = renderWithCtx(<App />, ctx);
