@@ -14,6 +14,7 @@ import { ModelPicker } from "./ModelPicker.js";
 import { CompactOverlay } from "./CompactOverlay.js";
 import { FleetOverlay } from "./FleetOverlay.js";
 import { BudgetOverlay } from "./BudgetOverlay.js";
+import { ReviewOverlay } from "./ReviewOverlay.js";
 import { SessionsOverlay } from "./SessionsOverlay.js";
 import { BuffersOverlay } from "./BuffersOverlay.js";
 import { TerminalPane } from "./TerminalPane.js";
@@ -323,6 +324,10 @@ export function App() {
           ) : overlay === "budget" ? (
             <Box flexDirection="column" flexGrow={1}>
               <BudgetOverlay onClose={() => store.getState().setOverlay(null)} />
+            </Box>
+          ) : overlay === "review" ? (
+            <Box flexDirection="column" flexGrow={1}>
+              <ReviewOverlay onClose={() => store.getState().setOverlay(null)} />
             </Box>
           ) : paletteOpen ? (
             <Box flexDirection="column" flexGrow={1}>

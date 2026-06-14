@@ -61,6 +61,18 @@ memory across sessions; **read it at the start of work and append to it as you g
   otherwise). `cli.tsx` seeds caps from config.
 - 392 tests pass, typecheck clean.
 
+### Shipped — Option C Phase 4: the review flow
+- `core/review.ts` (pure parsers + injectable `GitRun`): `parsePorcelain` (`-z`, paths-with-
+  spaces, renames new\0old), `parseDiffHunks` (NEW-file start line), `diffStats` (counts from
+  diff text — no numstat). `Review.collect()` uses per-file `git diff HEAD -- <path>` (paths as
+  args → no quoting/split issues, no staged/unstaged double-count), returns `repoRoot`, NEVER
+  throws (non-repo → empty). `stage`/`unstage` use `--` argv separator.
+- `ReviewOverlay` (`/review`): two-pane changed-files + color-coded scrollable diff. `j/k`
+  file · `^D/^U` scroll · `e` open in `$EDITOR` at first hunk (joins repoRoot → reuses Phase 1) ·
+  `s/u` stage/unstage · `r` refresh · esc. Injectable runner → UI tests never shell out to git.
+- No new global key (Ctrl+F is fleet); `/review` routes via the Phase-0 router. HelpOverlay
+  gains a "Fleet / review / cost" group. 404 tests pass, typecheck clean.
+
 ### Shipped — Option C Phase 1: the editor satellite
 - `SessionManager.openInEditor(file, line?, spawnFn?)` opens `$EDITOR`
   (`VISUAL ?? EDITOR ?? "vi"`) as a dedicated terminal tab — `+LINE` when a line is given —

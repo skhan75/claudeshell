@@ -125,6 +125,42 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
       label: "Permission modes",
       desc: "The side panel's PERMS/MODE: default prompts before risky tools; plan is read-only planning (no edits/commands); acceptEdits auto-approves file edits; bypassPermissions runs everything without asking. Switch via the command palette (mode: …).",
     },
+    // Fleet / review / cost (Option C cockpit)
+    {
+      key: "fleet",
+      group: "Fleet / review / cost",
+      binding: "Ctrl+F",
+      label: "Fleet dashboard",
+      desc: "Ctrl+F (or /fleet) opens mission control: every agent with live status, current activity, elapsed turn, context, and cost. j/k select · Enter focus · x interrupt · esc.",
+    },
+    {
+      key: "parallel",
+      group: "Fleet / review / cost",
+      binding: "/parallel <task>",
+      label: "Spawn a worker fleet",
+      desc: "/parallel <task> launches N background worker agents (config [fleet] size, default 3) on the same task and opens the dashboard. /swarm <task> does the same as a same-task swarm with a compare view.",
+    },
+    {
+      key: "review",
+      group: "Fleet / review / cost",
+      binding: "/review",
+      label: "Review changes",
+      desc: "/review opens a two-pane git diff reviewer. j/k pick a file · ^D/^U scroll the diff · e open it in $EDITOR at the first hunk · s/u stage/unstage · r refresh · esc.",
+    },
+    {
+      key: "budget",
+      group: "Fleet / review / cost",
+      binding: "/budget",
+      label: "Cost-guard / budgets",
+      desc: "/budget shows total + per-agent spend and lets you set soft/hard caps (s soft · h hard · c clear). Over the hard cap, new fleet spawns are blocked; the sidebar meter turns red.",
+    },
+    {
+      key: "fork",
+      group: "Fleet / review / cost",
+      binding: "/fork",
+      label: "Fork the session",
+      desc: "/fork branches the active conversation into a new tab that resumes the same context, so you can explore a divergent path without losing the original.",
+    },
     // Chat / scroll
     {
       key: "page-scroll",
