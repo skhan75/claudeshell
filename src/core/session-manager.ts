@@ -3,7 +3,15 @@ import { Session } from "./session.js";
 import { Terminal, type SpawnFn } from "./terminal.js";
 import { loadState, saveState, type SavedState } from "./persistence.js";
 import { workerTitle, lastAssistantText } from "./fleet.js";
-import type { QueryFn } from "./types.js";
+import type { BudgetCaps, QueryFn } from "./types.js";
+
+/** Keep only finite, positive caps — a corrupt/zombie cap must never brick spawning. */
+function sanitizeCaps(caps: BudgetCaps | undefined): BudgetCaps {
+  const out: BudgetCaps = {};
+  if (caps && typeof caps.softUsd === "number" && Number.isFinite(caps.softUsd) && caps.softUsd > 0) out.softUsd = caps.softUsd;
+  if (caps && typeof caps.hardUsd === "number" && Number.isFinite(caps.hardUsd) && caps.hardUsd > 0) out.hardUsd = caps.hardUsd;
+  return out;
+}
 
 /** A tab is either a Claude session or a terminal PTY tab. */
 export type Tab = Session | Terminal;
@@ -25,6 +33,8 @@ export interface ManagerOpts {
   cwd: string;
   statePath: string;
   queryFn?: QueryFn;
+  /** Initial cost-guard caps (from config); persisted caps win over these on restore. */
+  budget?: BudgetCaps;
 }
 
 export class SessionManager {
@@ -33,8 +43,53 @@ export class SessionManager {
   private counter = 0;
   private listeners = new Set<() => void>();
   private pendingCompact: { sessionId: string; mode: CompactMode; turnsBefore: number } | null = null;
+  private _budget: BudgetCaps = {};
 
-  constructor(private opts: ManagerOpts) {}
+  constructor(private opts: ManagerOpts) {
+    this._budget = sanitizeCaps(opts.budget);
+  }
+
+  /** Current cost-guard caps (USD). The single source of truth — not in the store. */
+  get budget(): Readonly<BudgetCaps> {
+    return this._budget;
+  }
+
+  /** Set/clear caps. `setBudget({})` clears both. Persists on next saveState (exit). */
+  setBudget(caps: BudgetCaps): void {
+    this._budget = sanitizeCaps(caps);
+    this.notify();
+  }
+
+  /** Total spend across ALL Claude tabs (terminals have no cost) — the fleet bill. */
+  totalCostUsd(): number {
+    return this.tabs.reduce((sum, t) => sum + (t.kind === "claude" ? t.transcript.usage.costUsd : 0), 0);
+  }
+
+  /** Where total spend sits relative to the caps. hardUsd takes precedence over softUsd. */
+  budgetLevel(): "ok" | "warn" | "over" {
+    const c = this._budget;
+    const total = this.totalCostUsd();
+    if (c.hardUsd != null && total >= c.hardUsd) return "over";
+    if (c.softUsd != null && total >= c.softUsd) return "warn";
+    return "ok";
+  }
+
+  /**
+   * The single cost-guard enforcement seam. A `spawn` over the hard cap is BLOCKED
+   * (the multiplicative spender); a single `send` is ALWAYS advisory — we never silently
+   * drop a user's prompt (a hard send-stop, if ever wanted, is a UI-layer veto, not here).
+   */
+  guardSpend(kind: "send" | "spawn"): { allowed: boolean; level: "ok" | "warn" | "over"; reason?: string } {
+    const level = this.budgetLevel();
+    if (kind === "spawn" && level === "over") {
+      return {
+        allowed: false,
+        level,
+        reason: `over hard cap ($${this.totalCostUsd().toFixed(2)} ≥ $${this._budget.hardUsd}) — raise it in /budget to spawn more agents`,
+      };
+    }
+    return { allowed: true, level };
+  }
 
   /** Per-session change handler: drives any pending /compact, then notifies the UI. */
   private onSessionChange(s: Session): void {
@@ -93,6 +148,13 @@ export class SessionManager {
    * Returns the created sessions.
    */
   spawnWorkers(task: string, n: number, opts?: { group?: string; label?: string }): Session[] {
+    // Cost-guard: a fleet is the big multiplicative spender — block it over the hard cap.
+    const guard = this.guardSpend("spawn");
+    if (!guard.allowed) {
+      this.active?.transcript.addInfo(`◆ fleet not spawned — ${guard.reason}`);
+      this.notify();
+      return [];
+    }
     const count = Math.max(1, Math.floor(n) || 1);
     const callerIndex = this.activeIndex;
     const label = opts?.label ?? "worker";
@@ -241,6 +303,7 @@ export class SessionManager {
         .map((s) => ({
           id: s.id, title: s.title, cwd: s.cwd, claudeSessionId: s.claudeSessionId,
         })),
+      budget: this._budget,
     };
     saveState(this.opts.statePath, state);
   }
@@ -273,6 +336,9 @@ export class SessionManager {
       this.activeIndex = Number.isInteger(state.active)
         ? Math.max(0, Math.min(state.active, Math.max(0, this.tabs.length - 1)))
         : 0;
+      // Persisted caps (the user's most recent /budget) win over the config seed.
+      // Sanitize so a corrupt state.json can't install a negative/NaN poison cap.
+      if (state.budget !== undefined) this._budget = sanitizeCaps(state.budget);
     }
     if (this.tabs.length === 0) this.create();
     this.notify();

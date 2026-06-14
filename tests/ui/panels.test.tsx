@@ -80,6 +80,22 @@ describe("SidePanel", () => {
     expect(frame).toContain("$0.20 last turn");
   });
 
+  it("hides the BUDGET row when no caps are set, shows it (colored + metered) when set", () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    s.transcript.apply({ type: "result", subtype: "success", total_cost_usd: 4, num_turns: 1 });
+    ctx.store.getState().bump();
+    // No caps → no BUDGET row (zero new chrome for the 99% with no budget).
+    expect(renderWithCtx(<SidePanel />, ctx).lastFrame()!).not.toContain("BUDGET");
+    cleanupInk();
+    // Cap set and crossed → BUDGET row appears with the fleet total / cap.
+    ctx.manager.setBudget({ hardUsd: 5 });
+    ctx.store.getState().bump();
+    const frame = renderWithCtx(<SidePanel />, ctx).lastFrame()!;
+    expect(frame).toContain("BUDGET");
+    expect(frame).toContain("$4.00 / $5.00");
+  });
+
   it("shows a filetype icon and right-aligned size for loaded buffers", () => {
     const ctx = makeCtx();
     const s = ctx.manager.active!;

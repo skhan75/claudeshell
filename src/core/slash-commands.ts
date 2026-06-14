@@ -10,7 +10,7 @@ import type { AppOverlay } from "./types.js";
  *
  * Leading "/" included; kept alphabetical so the inline picker reads predictably.
  */
-export const DEFAULT_SLASH_COMMANDS: string[] = ["/clear", "/compact", "/fleet", "/help", "/model", "/parallel"];
+export const DEFAULT_SLASH_COMMANDS: string[] = ["/budget", "/clear", "/compact", "/fleet", "/help", "/model", "/parallel"];
 
 /**
  * The slash commands to offer: the built-in Claude commands first (the familiar

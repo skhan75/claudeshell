@@ -59,6 +59,7 @@ async function main() {
   const manager = new SessionManager({
     cwd,
     statePath: statePathFor(cwd),
+    budget: config.budget,
   });
   manager.restoreState();
 

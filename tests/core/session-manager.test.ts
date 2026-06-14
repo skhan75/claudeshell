@@ -371,6 +371,89 @@ describe("SessionManager", () => {
     });
   });
 
+  // --- Cost-guard / budgets (Option C Phase 3) ---
+
+  it("totalCostUsd sums claude tabs and ignores terminals", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    const a = m.create();
+    a.transcript.usage.costUsd = 1.25;
+    const b = m.create();
+    b.transcript.usage.costUsd = 0.75;
+    m.createTerminal({ spawnFn: fakeSpawn });
+    expect(m.totalCostUsd()).toBeCloseTo(2.0, 10);
+  });
+
+  it("budgetLevel reflects caps; hard takes precedence over soft", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    const a = m.create();
+    a.transcript.usage.costUsd = 3;
+    expect(m.budgetLevel()).toBe("ok"); // no caps
+    m.setBudget({ softUsd: 2, hardUsd: 5 });
+    expect(m.budgetLevel()).toBe("warn"); // 3 in [2,5)
+    a.transcript.usage.costUsd = 6;
+    expect(m.budgetLevel()).toBe("over"); // 6 >= 5
+  });
+
+  it("setBudget updates caps + fires notify; {} clears; non-positive caps rejected", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    let ticks = 0;
+    m.subscribe(() => ticks++);
+    m.setBudget({ softUsd: 1, hardUsd: 2 });
+    expect(m.budget).toEqual({ softUsd: 1, hardUsd: 2 });
+    expect(ticks).toBeGreaterThan(0);
+    m.setBudget({ softUsd: -1, hardUsd: 0 });
+    expect(m.budget).toEqual({});
+  });
+
+  it("guardSpend blocks spawn over hard cap; send is always advisory", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    const a = m.create();
+    a.transcript.usage.costUsd = 10;
+    m.setBudget({ hardUsd: 5 });
+    expect(m.guardSpend("spawn").allowed).toBe(false);
+    expect(m.guardSpend("spawn").reason).toContain("hard cap");
+    expect(m.guardSpend("send").allowed).toBe(true); // never gate a single user prompt
+    a.transcript.usage.costUsd = 1;
+    expect(m.guardSpend("spawn").allowed).toBe(true);
+  });
+
+  it("spawnWorkers is blocked over the hard cap (no new tabs, info appended)", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    const a = m.create();
+    a.transcript.usage.costUsd = 10;
+    m.setBudget({ hardUsd: 5 });
+    const before = m.tabs.length;
+    expect(m.spawnWorkers("go", 3, {})).toEqual([]);
+    expect(m.tabs.length).toBe(before);
+    expect(a.transcript.blocks.some((b) => b.kind === "info" && b.text.includes("hard cap"))).toBe(true);
+  });
+
+  it("persists + restores caps; a poison persisted cap is dropped; persisted wins over config", () => {
+    const statePath = tmpState();
+    const m1 = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery });
+    m1.create();
+    m1.setBudget({ softUsd: 2, hardUsd: 9 });
+    m1.saveState();
+
+    const m2 = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery, budget: { hardUsd: 99 } });
+    m2.restoreState();
+    expect(m2.budget).toEqual({ softUsd: 2, hardUsd: 9 }); // persisted wins over config seed
+
+    writeFileSync(
+      statePath,
+      JSON.stringify({ version: 1, active: 0, counter: 1, sessions: [{ id: "s1", title: "x", cwd: "/tmp" }], budget: { softUsd: -3, hardUsd: 0 } })
+    );
+    const m3 = new SessionManager({ cwd: "/tmp", statePath, queryFn: noopQuery });
+    m3.restoreState();
+    expect(m3.budget).toEqual({}); // poison cap rejected
+  });
+
+  it("config budget seeds the caps when there is no persisted state", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery, budget: { hardUsd: 42 } });
+    m.restoreState();
+    expect(m.budget).toEqual({ hardUsd: 42 });
+  });
+
   // --- Eager warmup: tabs connect their query before the first prompt ---
 
   it("create() eagerly warms the active session (query opens once, no prompt sent)", () => {

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
+import type { BudgetCaps } from "./types.js";
 
 /** Per-project state file — cwd slug mirrors Claude Code's project naming.
  *  A short SHA-1 hash suffix makes the slug injective (avoids collisions like
@@ -24,6 +25,8 @@ export interface SavedState {
   active: number;
   counter: number;
   sessions: SavedSession[];
+  /** Last-set cost-guard caps (the user's most recent /budget wins over config on restore). */
+  budget?: BudgetCaps;
 }
 
 export function loadState(path: string): SavedState | null {

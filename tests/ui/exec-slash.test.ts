@@ -36,6 +36,8 @@ describe("execSlash — the single routed-action sink", () => {
     expect(execSlash(routeSlash("/compact the parser"), ctx)).toBe(true);
     expect(ctx.store.getState().compactFocus).toBe("the parser");
     expect(ctx.store.getState().overlay).toBe("compact");
+    expect(execSlash(routeSlash("/budget"), ctx)).toBe(true);
+    expect(ctx.store.getState().overlay).toBe("budget");
     // /clear resets the active session (no throw); returns handled
     expect(execSlash(routeSlash("/clear"), ctx)).toBe(true);
   });

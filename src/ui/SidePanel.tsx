@@ -240,6 +240,23 @@ export function SidePanel({ height }: { height?: number } = {}) {
         <Row label="CACHE" value={`${fmtK(u.cacheReadTokens)} read`} color={theme.accent} />
         <Row label="COST" value={`${fmtUsd(u.costUsd)} total`} color={theme.good} />
         <Row label="INFER" value={`${fmtUsd(u.lastTurnCostUsd)} last turn`} color={theme.warn} />
+        {(() => {
+          // Fleet-wide cost-guard, shown only when a cap exists (no chrome otherwise).
+          const caps = manager.budget;
+          if (caps.softUsd == null && caps.hardUsd == null) return null;
+          const total = manager.totalCostUsd();
+          const level = manager.budgetLevel();
+          const color = level === "over" ? theme.bad : level === "warn" ? theme.warn : theme.good;
+          const cap = caps.hardUsd ?? caps.softUsd;
+          return (
+            <>
+              <Row label="BUDGET" value={`${fmtUsd(total)}${cap != null ? ` / ${fmtUsd(cap)}` : ""}`} color={color} />
+              {caps.hardUsd != null && (
+                <Text color={color}>{bar(Math.min(100, (total / caps.hardUsd) * 100), CONTENT_WIDTH)}</Text>
+              )}
+            </>
+          );
+        })()}
 
         <Box marginTop={1} flexDirection="column">
           <Text wrap="truncate">

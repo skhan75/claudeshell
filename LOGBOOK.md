@@ -47,6 +47,20 @@ memory across sessions; **read it at the start of work and append to it as you g
 - `/parallel <task>` spawns `config.fleetSize` workers + opens the dashboard (execSlash case).
 - 377 tests pass, typecheck clean.
 
+### Shipped — Option C Phase 3: cost-guard / budgets
+- `core/pricing.ts` (pure, PROJECTION-ONLY): per-family $/MTok table, longest-prefix
+  `priceFor`, `estimateCost`, `estimateSpawnCost`. Sonnet FALLBACK (covers `claude-fable-5`).
+  All meters/enforcement read the SDK's REAL `costUsd`; pricing only labels estimates.
+- `SessionManager`: `budget` getter / `setBudget` / `totalCostUsd` (sum across claude tabs) /
+  `budgetLevel` (ok|warn|over) / `guardSpend(kind)`. Caps are CORE state, persisted in
+  `SavedState.budget` (persisted wins over config seed; sanitized finite/>0 on restore).
+  `spawnWorkers` blocked over the hard cap (the multiplicative spender); single `send` stays
+  ADVISORY by design — never silently drop a user's prompt.
+- `/budget` overlay (BudgetOverlay): total spend, per-agent breakdown, inline `s`/`h` cap
+  editing, `c` clear. SidePanel grows a BUDGET row + meter ONLY when caps exist (no chrome
+  otherwise). `cli.tsx` seeds caps from config.
+- 392 tests pass, typecheck clean.
+
 ### Shipped — Option C Phase 1: the editor satellite
 - `SessionManager.openInEditor(file, line?, spawnFn?)` opens `$EDITOR`
   (`VISUAL ?? EDITOR ?? "vi"`) as a dedicated terminal tab — `+LINE` when a line is given —
