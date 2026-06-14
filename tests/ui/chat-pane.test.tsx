@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import React from "react";
-import { ChatPane, wrapText, chromeRows } from "../../src/ui/ChatPane.js";
+import { ChatPane, wrapText, chromeRows, toolLines } from "../../src/ui/ChatPane.js";
+import { lineText } from "../../src/ui/wrap-spans.js";
+import type { TranscriptBlock } from "../../src/core/types.js";
 import { renderWithCtx, makeCtx, cleanupInk, tick } from "./helpers.js";
 
 afterEach(cleanupInk);
@@ -224,6 +226,49 @@ describe("ChatPane", () => {
     expect(frame).toContain("✻");
     expect(frame).toContain("checking the issuer");
     expect(frame).toContain("Here is the fix.");
+  });
+});
+
+describe("toolLines — rich tool rendering", () => {
+  const text = (b: Extract<TranscriptBlock, { kind: "tool" }>, w = 60) => toolLines(b, w).map(lineText).join("\n");
+  const tool = (extra: Partial<Extract<TranscriptBlock, { kind: "tool" }>>): Extract<TranscriptBlock, { kind: "tool" }> =>
+    ({ kind: "tool", name: "X", detail: "", status: "done", ok: true, ...extra });
+
+  it("renders an Edit as a green/red +/- diff with the file", () => {
+    const t = text(tool({ name: "Edit", input: { file_path: "/a/b/foo.ts", old_string: "const x = 1", new_string: "const x = 2" } }));
+    expect(t).toContain("⚙ Edit");
+    expect(t).toContain("b/foo.ts"); // last segments
+    expect(t).toContain("- const x = 1");
+    expect(t).toContain("+ const x = 2");
+  });
+
+  it("renders Write content as additions", () => {
+    const t = text(tool({ name: "Write", input: { file_path: "x.py", content: "print(1)\nprint(2)" } }));
+    expect(t).toContain("⚙ Write");
+    expect(t).toContain("+ print(1)");
+    expect(t).toContain("+ print(2)");
+  });
+
+  it("renders a Bash command and its output", () => {
+    const t = text(tool({ name: "Bash", input: { command: "ls -la" }, result: "file1\nfile2\n" }));
+    expect(t).toContain("$ ls -la");
+    expect(t).toContain("file1");
+    expect(t).toContain("file2");
+  });
+
+  it("keeps read-only tools a terse one-liner", () => {
+    const lines = toolLines(tool({ name: "Read", detail: "foo.ts" }), 60);
+    expect(lines).toHaveLength(1);
+    expect(lineText(lines[0])).toContain("⚙ Read foo.ts");
+  });
+
+  it("caps long output with a '+N more lines' footer", () => {
+    const big = Array.from({ length: 40 }, (_, i) => `line ${i}`).join("\n");
+    expect(text(tool({ name: "Write", input: { file_path: "x", content: big } }))).toMatch(/\+\d+ more lines/);
+  });
+
+  it("marks an errored tool with ✖", () => {
+    expect(text(tool({ name: "Bash", ok: false, input: { command: "false" }, result: "boom" }))).toContain("✖");
   });
 });
 

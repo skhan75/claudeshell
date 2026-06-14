@@ -39,6 +39,82 @@ export function wrapText(text: string, width: number): string[] {
   return out;
 }
 
+/** Last two path segments, e.g. /a/b/c/d.ts → c/d.ts. */
+function shortFile(p: string): string {
+  const parts = p.split("/").filter(Boolean);
+  return parts.length <= 2 ? p : parts.slice(-2).join("/");
+}
+
+/** Clip a string to `w` cells with an ellipsis. */
+function clip(s: string, w: number): string {
+  return s.length > w ? s.slice(0, Math.max(1, w - 1)) + "…" : s;
+}
+
+const RICH_TOOLS = new Set(["Edit", "MultiEdit", "Write", "NotebookEdit", "Bash"]);
+const MAX_TOOL_BODY = 16; // cap a tool's diff/output, with a "+N more" footer
+
+/**
+ * Render a tool call like the CLI shows its work: a header (⚙ name · file · status)
+ * plus the actual change — a green/red diff for Edit/Write, the command + output for
+ * Bash — straight from the SDK's structured tool input/result. Read-only tools
+ * (Read/Grep/Glob/…) stay a terse one-liner. Output is capped to keep it scannable.
+ */
+export function toolLines(
+  b: Extract<TranscriptBlock, { kind: "tool" }>,
+  width: number,
+): Line[] {
+  const running = b.status === "running";
+  const errored = b.ok === false;
+  const glyph = running ? "…" : errored ? "✖" : "✓";
+  const glyphColor = running ? theme.dim : errored ? theme.bad : theme.good;
+  const input = b.input ?? {};
+  const w = Math.max(8, width);
+  const bodyW = Math.max(8, width - 2);
+
+  if (!RICH_TOOLS.has(b.name)) {
+    // Terse one-liner for read-only / non-diff tools, keeping the summarized detail.
+    return [{
+      spans: [
+        { text: clip(`⚙ ${b.name} ${b.detail}`, w - 2), color: theme.purple },
+        { text: ` ${glyph}`, color: glyphColor },
+      ],
+    }];
+  }
+
+  const file = typeof input.file_path === "string" ? shortFile(input.file_path) : "";
+  const lines: Line[] = [{
+    spans: [
+      { text: "⚙ ", color: theme.purple },
+      { text: b.name, color: theme.purple, bold: true },
+      ...(file ? [{ text: " " + clip(file, Math.max(6, w - b.name.length - 6)), color: theme.accent }] : []),
+      { text: ` ${glyph}`, color: glyphColor },
+    ],
+  }];
+
+  const body: { text: string; color: string }[] = [];
+  const diff = (oldS: string, newS: string) => {
+    for (const l of oldS ? oldS.split("\n") : []) body.push({ text: "- " + l, color: theme.bad });
+    for (const l of newS ? newS.split("\n") : []) body.push({ text: "+ " + l, color: theme.good });
+  };
+  if (b.name === "Edit" || b.name === "NotebookEdit") {
+    diff(String(input.old_string ?? input.old_source ?? ""), String(input.new_string ?? input.new_source ?? ""));
+  } else if (b.name === "MultiEdit" && Array.isArray(input.edits)) {
+    for (const e of input.edits as Array<Record<string, unknown>>) diff(String(e.old_string ?? ""), String(e.new_string ?? ""));
+  } else if (b.name === "Write" && typeof input.content === "string") {
+    for (const l of input.content.split("\n")) body.push({ text: "+ " + l, color: theme.good });
+  } else if (b.name === "Bash" && typeof input.command === "string") {
+    body.push({ text: "$ " + input.command, color: theme.fg });
+    if (b.result) for (const l of b.result.replace(/\n+$/, "").split("\n")) body.push({ text: l, color: errored ? theme.bad : theme.dim });
+  }
+
+  const shown = body.slice(0, MAX_TOOL_BODY);
+  for (const x of shown) lines.push({ spans: [{ text: "  " + clip(x.text, bodyW), color: x.color }] });
+  if (body.length > shown.length) {
+    lines.push({ spans: [{ text: `  … +${body.length - shown.length} more lines`, color: theme.dim }] });
+  }
+  return lines;
+}
+
 /**
  * Render one transcript block to styled content lines — clean and minimal, like
  * the Claude CLI: user prompts get a simple `❯` marker, assistant answers are
@@ -66,12 +142,7 @@ export function blockLines(b: TranscriptBlock, width: number): Line[] {
       return lines;
     }
     case "tool":
-      return [{
-        spans: [{
-          text: `⚙ ${b.name} ${b.detail} ${b.status === "running" ? "…" : "✓"}`.slice(0, width),
-          color: theme.purple,
-        }],
-      }];
+      return toolLines(b, width);
     case "thinking": {
       const wrapped = wrapSpans([{ text: b.text, dim: true, italic: true }], Math.max(1, width - 2));
       const lines: Line[] = wrapped.map((l, i) => ({

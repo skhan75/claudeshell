@@ -14,6 +14,30 @@ describe("Transcript", () => {
     expect(t.meta.slashCommands).toContain("/commit");
   });
 
+  it("captures tool input and the tool_result output for rich rendering", () => {
+    const t = new Transcript();
+    t.apply({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", id: "t1", name: "Edit", input: { file_path: "a.ts", old_string: "x", new_string: "y" } }] },
+    });
+    const running = t.blocks.find((b) => b.kind === "tool");
+    expect(running?.kind === "tool" && running.input?.old_string).toBe("x");
+    expect(running?.kind === "tool" && running.status).toBe("running");
+    t.apply({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "Applied edit", is_error: false }] } });
+    const done = t.blocks.find((b) => b.kind === "tool");
+    expect(done?.kind === "tool" && done.status).toBe("done");
+    expect(done?.kind === "tool" && done.result).toBe("Applied edit");
+    expect(done?.kind === "tool" && done.ok).toBe(true);
+  });
+
+  it("flags an errored tool_result (is_error) with ok=false", () => {
+    const t = new Transcript();
+    t.apply({ type: "assistant", message: { content: [{ type: "tool_use", id: "t9", name: "Bash", input: { command: "false" } }] } });
+    t.apply({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t9", content: "boom", is_error: true }] } });
+    const done = t.blocks.find((b) => b.kind === "tool");
+    expect(done?.kind === "tool" && done.ok).toBe(false);
+  });
+
   it("ignores the SDK's <synthetic> placeholder model (eager-warmup noise)", () => {
     const t = new Transcript();
     // The no-prompt warmup init reports "<synthetic>" — must NOT become the model.

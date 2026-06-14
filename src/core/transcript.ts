@@ -39,6 +39,18 @@ function isRealModel(m: unknown): m is string {
   return typeof m === "string" && m.length > 0 && !m.startsWith("<");
 }
 
+/** Flatten a tool_result's content (string, or an array of {type:"text"} parts) to text. */
+function toolResultText(r: { content?: unknown }): string | undefined {
+  const c = r.content;
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) {
+    return c
+      .map((x) => (x && typeof x === "object" && typeof (x as { text?: unknown }).text === "string" ? (x as { text: string }).text : ""))
+      .join("");
+  }
+  return undefined;
+}
+
 export class Transcript {
   blocks: TranscriptBlock[] = [];
   usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: 0, lastTurnCostUsd: 0, turns: 0, contextTokens: 0 };
@@ -123,7 +135,14 @@ export class Transcript {
       }
       for (const b of blocks) {
         if (b.type === "tool_use" && typeof b.name === "string") {
-          this.blocks.push({ kind: "tool", name: b.name, detail: summarize(b.name, b.input), status: "running", id: typeof b.id === "string" ? b.id : undefined });
+          this.blocks.push({
+            kind: "tool",
+            name: b.name,
+            detail: summarize(b.name, b.input),
+            status: "running",
+            id: typeof b.id === "string" ? b.id : undefined,
+            input: (b.input ?? undefined) as Record<string, unknown> | undefined,
+          });
           const fp = b.input?.file_path;
           if (FILE_TOOLS.has(b.name) && typeof fp === "string") this.contextFiles.add(fp);
         }
@@ -146,11 +165,15 @@ export class Transcript {
     if (msg.type === "user") {
       const results = contentBlocks(msg).filter((b) => b.type === "tool_result");
       for (const r of results) {
+        const text = toolResultText(r as { content?: unknown });
+        const ok = (r as { is_error?: unknown }).is_error !== true;
         let marked = false;
         if (typeof r.tool_use_id === "string") {
           for (const b of this.blocks) {
             if (b.kind === "tool" && b.status === "running" && b.id === r.tool_use_id) {
               b.status = "done";
+              b.result = text;
+              b.ok = ok;
               marked = true;
               break;
             }
@@ -161,6 +184,8 @@ export class Transcript {
             const b = this.blocks[i];
             if (b.kind === "tool" && b.status === "running") {
               b.status = "done";
+              b.result = text;
+              b.ok = ok;
               break;
             }
           }

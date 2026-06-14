@@ -2,7 +2,19 @@ export type TranscriptBlock =
   | { kind: "user"; text: string; ts?: number }
   | { kind: "assistant"; text: string; streaming: boolean; ts?: number }
   | { kind: "thinking"; text: string; streaming: boolean; ts?: number }
-  | { kind: "tool"; name: string; detail: string; status: "running" | "done"; id?: string }
+  | {
+      kind: "tool";
+      name: string;
+      detail: string;
+      status: "running" | "done";
+      id?: string;
+      /** Full tool input (file_path, old/new strings, content, command, …) for rich rendering. */
+      input?: Record<string, unknown>;
+      /** Captured tool_result text (command output, file content) once the tool completes. */
+      result?: string;
+      /** Whether the tool_result reported success (false → the tool errored). */
+      ok?: boolean;
+    }
   | { kind: "info"; text: string };
 
 export interface Usage {
