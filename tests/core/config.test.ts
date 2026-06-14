@@ -22,6 +22,35 @@ describe("loadConfig", () => {
     expect(cfg.layout).toBe("sidebar");
     expect(cfg.pills).toEqual(DEFAULT_PILLS);
     expect(cfg.keys).toEqual(DEFAULT_KEYS);
+    expect(cfg.fleetSize).toBe(3);
+    expect(cfg.budget).toEqual({});
+  });
+
+  it("reads [fleet] size and [budget] caps, clamping/sanitizing bad values", () => {
+    writeFileSync(
+      join(projectDir, ".claudeshell.toml"),
+      `[fleet]\nsize = 5\n\n[budget]\nsoftUsd = 2.5\nhardUsd = 10\n`
+    );
+    const cfg = loadConfig({ globalDir, cwd: projectDir });
+    expect(cfg.fleetSize).toBe(5);
+    expect(cfg.budget).toEqual({ softUsd: 2.5, hardUsd: 10 });
+  });
+
+  it("rejects non-positive / non-finite fleet size and budget caps", () => {
+    writeFileSync(
+      join(projectDir, ".claudeshell.toml"),
+      `[fleet]\nsize = -2\n\n[budget]\nsoftUsd = 0\nhardUsd = -5\n`
+    );
+    const cfg = loadConfig({ globalDir, cwd: projectDir });
+    expect(cfg.fleetSize).toBe(3); // fell back to default
+    expect(cfg.budget).toEqual({}); // both caps rejected
+  });
+
+  it("project budget overrides global budget per-cap", () => {
+    writeFileSync(join(globalDir, "config.toml"), `[budget]\nsoftUsd = 1\nhardUsd = 5\n`);
+    writeFileSync(join(projectDir, ".claudeshell.toml"), `[budget]\nhardUsd = 20\n`);
+    const cfg = loadConfig({ globalDir, cwd: projectDir });
+    expect(cfg.budget).toEqual({ softUsd: 1, hardUsd: 20 });
   });
 
   it("global config overrides defaults; project overrides global", () => {

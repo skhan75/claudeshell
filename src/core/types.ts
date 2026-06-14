@@ -35,6 +35,31 @@ export interface SessionMeta {
   mcpServers: { name: string; status: string }[];
 }
 
+/**
+ * The non-null overlay panels the app can show. Defined ONCE here so the store's
+ * `Overlay` union (src/store.ts) and the slash router's overlay actions
+ * (src/core/slash-commands.ts) reference the same type and can never drift —
+ * a mismatch becomes a compile error, not a blank screen at runtime.
+ */
+export type AppOverlay =
+  | "help"
+  | "sessions"
+  | "buffers"
+  | "models"
+  | "compact"
+  | "fleet"
+  | "budget"
+  | "review";
+
+/** Cost-guard caps (USD). Both optional — an empty object means "no budget set".
+ *  Shared by Config.budget, ManagerOpts.budget, SavedState.budget, and the UI. */
+export interface BudgetCaps {
+  /** Warn (amber meter) once total spend crosses this. */
+  softUsd?: number;
+  /** Block NEW fleet spawns once total spend crosses this. */
+  hardUsd?: number;
+}
+
 export type SessionStatus =
   | "idle"
   | "processing"

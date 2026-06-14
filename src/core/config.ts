@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { parse } from "smol-toml";
+import type { BudgetCaps } from "./types.js";
 
 export interface Pill {
   label: string;
@@ -15,6 +16,24 @@ export interface Config {
   keys: Record<string, string>;
   models: string[];
   theme: string;
+  /** How many worker agents `/parallel` and `/swarm` spawn by default. */
+  fleetSize: number;
+  /** Cost-guard caps (USD). Empty object → no budget. */
+  budget: BudgetCaps;
+}
+
+/** Clamp a fleet size to a sane range; fall back to 3 for non-finite/≤0. */
+function sanitizeFleetSize(n: number | undefined): number {
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return 3;
+  return Math.min(16, Math.floor(n));
+}
+
+/** Keep only finite, positive cap values — a corrupt cap must never brick spawning. */
+function sanitizeBudget(b: BudgetCaps | undefined): BudgetCaps {
+  const out: BudgetCaps = {};
+  if (b && typeof b.softUsd === "number" && Number.isFinite(b.softUsd) && b.softUsd > 0) out.softUsd = b.softUsd;
+  if (b && typeof b.hardUsd === "number" && Number.isFinite(b.hardUsd) && b.hardUsd > 0) out.hardUsd = b.hardUsd;
+  return out;
 }
 
 export const DEFAULT_PILLS: Pill[] = [
@@ -47,6 +66,8 @@ interface RawConfig {
   keys?: Record<string, string>;
   models?: string[];
   theme?: { name?: string };
+  fleet?: { size?: number };
+  budget?: BudgetCaps;
 }
 
 function sanitize(raw: Record<string, unknown>): RawConfig {
@@ -77,6 +98,14 @@ function sanitize(raw: Record<string, unknown>): RawConfig {
   const themeRaw = raw.theme;
   if (themeRaw && typeof themeRaw === "object" && typeof (themeRaw as { name?: unknown }).name === "string") {
     out.theme = { name: (themeRaw as { name: string }).name };
+  }
+  const fleet = raw.fleet;
+  if (fleet && typeof fleet === "object" && typeof (fleet as { size?: unknown }).size === "number") {
+    out.fleet = { size: (fleet as { size: number }).size };
+  }
+  const budget = raw.budget;
+  if (budget && typeof budget === "object") {
+    out.budget = sanitizeBudget(budget as BudgetCaps);
   }
   return out;
 }
@@ -114,5 +143,7 @@ export function loadConfig(opts: { globalDir?: string; cwd?: string } = {}): Con
     keys: { ...DEFAULT_KEYS, ...g.keys, ...p.keys },
     models: (p.models?.length ? p.models : undefined) ?? (g.models?.length ? g.models : undefined) ?? DEFAULT_MODELS,
     theme: p.theme?.name ?? g.theme?.name ?? "cyberpunk",
+    fleetSize: sanitizeFleetSize(p.fleet?.size ?? g.fleet?.size),
+    budget: { ...sanitizeBudget(g.budget), ...sanitizeBudget(p.budget) },
   };
 }

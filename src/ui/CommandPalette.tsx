@@ -4,7 +4,8 @@ import { useApp, useAppCtx, type AppCtx } from "./context.js";
 import { theme } from "./theme.js";
 import { fuzzyFilter } from "../core/fuzzy.js";
 import { searchHistory, type HistoryHit } from "../core/history-search.js";
-import { effectiveSlashCommands, APP_SLASH_OVERLAY } from "../core/slash-commands.js";
+import { effectiveSlashCommands, routeSlash } from "../core/slash-commands.js";
+import { execSlash } from "./execSlash.js";
 
 export interface PaletteItem {
   label: string;
@@ -77,17 +78,9 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
 
   const slashCommands = effectiveSlashCommands(session?.transcript.meta.slashCommands ?? []);
   for (const cmd of slashCommands) {
-    const overlay = APP_SLASH_OVERLAY[cmd];
-    // App-handled commands run a real action; everything else (agent skills/plugins) is
-    // sent to the session, which genuinely invokes them.
-    const run = overlay
-      ? () => store.getState().setOverlay(overlay)
-      : cmd === "/clear"
-        ? () => session?.reset()
-        : cmd === "/compact"
-          ? () => { store.getState().setCompactFocus(""); store.getState().setOverlay("compact"); }
-          : () => session?.send(cmd);
-    items.push({ label: `slash: ${cmd}`, run });
+    // Route through the SINGLE slash router; if it isn't app-handled (SDK skills/plugins),
+    // send it to the session, which genuinely invokes it.
+    items.push({ label: `slash: ${cmd}`, run: () => { if (!execSlash(routeSlash(cmd), ctx)) session?.send(cmd); } });
   }
 
   return items;

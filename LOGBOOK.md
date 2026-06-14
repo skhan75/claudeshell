@@ -8,6 +8,32 @@ memory across sessions; **read it at the start of work and append to it as you g
 
 ## 2026-06-14
 
+### PLAN — Option C Phases 2–5 in one push (design-validated via workflow)
+- Ran a 5-agent design-validation workflow (4 parallel phase-designers + 1 integration synthesizer)
+  to lock contracts and surface cross-phase conflicts BEFORE writing code. Locked decisions:
+- **Phase 0 (shared plumbing, lands first):** export one `AppOverlay` string-literal type from
+  `store.ts` (imported by `slash-commands.ts` so the store union + router can't drift); define
+  `SlashAction` + pure `routeSlash(raw)` in core + thin `execSlash(action, ctx)` in ui; migrate
+  BOTH `InputBar.runSlash` and `CommandPalette` onto it (kills the duplication CLAUDE.md flags).
+  Add `Config.fleetSize` (def 3) + `Config.budget` (def {}); wire `cli.tsx`. Parity table-test.
+- **Phase 2 — Fleet:** `core/fleet.ts` (projectFleet/currentActivity/elapsedMs/fmtElapsed/
+  workerTitle/lastAssistantText/WORKER_GLYPH/FleetRow); `SessionManager.spawnWorkers`; bespoke
+  `FleetOverlay` (Ctrl+F / `/fleet`); `/parallel <task>`. Pin: capture+restore callerIndex,
+  one final notify; projectFleet preserves original tab `.index`.
+- **Phase 3 — Cost-guard:** `core/pricing.ts` (projection-only); `BudgetCaps` + budget state +
+  `guardSpend`; `/budget` overlay; SidePanel BUDGET row. Decisions: caps block only NEW spawns
+  (the multiplicative spender); single `send` stays ADVISORY (no core Session.send gating); all
+  meters/enforcement read the SDK's REAL `costUsd`, pricing only labels estimates.
+- **Phase 4 — Review:** `core/review.ts` (injectable `GitRun`, `git -z` everywhere, per-file
+  `git diff HEAD`, `collect()` never throws, returns repoRoot); `/review` overlay; `e` opens the
+  file in `$EDITOR` at the first hunk (reuses Phase 1). Inject the runner in UI tests.
+- **Phase 5 — fork/swarm:** `Session.group?`; `fork()→Session|null` (null until claudeSessionId
+  exists; v1 only when parent idle — concurrent-resume hazard); `/swarm <task>`; FleetOverlay `c`
+  compare view. Filter swarm members on `group`, not the title glyph.
+- Top risks being guarded: routing regression (parity test first), contextless-fork, spawn
+  focus/notify storm, fleet index-mapping, budget enforcement gap (documented), pricing drift
+  (projection-only), async-in-Ink for review (await tick), cwd/path mismatch for `e`.
+
 ### Shipped — Option C Phase 1: the editor satellite
 - `SessionManager.openInEditor(file, line?, spawnFn?)` opens `$EDITOR`
   (`VISUAL ?? EDITOR ?? "vi"`) as a dedicated terminal tab — `+LINE` when a line is given —

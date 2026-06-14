@@ -5,7 +5,8 @@ import { theme } from "./theme.js";
 import { Keycap, FilledLine, SIDEBAR_WIDTH, INPUT_BORDER, INPUT_BORDER_FOCUS, INPUT_BG } from "./chrome.js";
 import { fuzzyFilter } from "../core/fuzzy.js";
 import { listProjectFilesCached } from "../core/files.js";
-import { effectiveSlashCommands, APP_SLASH_OVERLAY } from "../core/slash-commands.js";
+import { effectiveSlashCommands, routeSlash } from "../core/slash-commands.js";
+import { execSlash } from "./execSlash.js";
 
 export function InputBar({ width: widthProp }: { width?: number } = {}) {
   const { manager, config, store } = useAppCtx();
@@ -75,26 +76,11 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
     setDismissed(false);
   };
 
-  // App-handled slash commands run a real action (the SDK query can't run CLI slash
-  // commands). Returns true if it handled the command.
-  const runSlash = (cmd: string): boolean => {
-    const c = cmd.trim();
-    const ov = APP_SLASH_OVERLAY[c];
-    if (ov) {
-      store.getState().setOverlay(ov);
-      return true;
-    }
-    if (c === "/clear") {
-      manager.active?.reset();
-      return true;
-    }
-    if (c === "/compact" || c.startsWith("/compact ")) {
-      store.getState().setCompactFocus(c.slice("/compact".length).trim());
-      store.getState().setOverlay("compact");
-      return true;
-    }
-    return false;
-  };
+  // App-handled slash commands run a real action via the single router (the SDK query
+  // can't run CLI slash commands). Returns true if handled — both the picker-Enter and
+  // the top-level Enter route through here; arg commands (/parallel <task>) only reach
+  // the top-level path since the inline picker closes as soon as the text has a space.
+  const runSlash = (cmd: string): boolean => execSlash(routeSlash(cmd), { manager, config, store });
 
   const clearInput = () => {
     setText("");

@@ -1,9 +1,11 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { HostStats } from "./core/types.js";
+import type { AppOverlay, HostStats } from "./core/types.js";
 
+export type { AppOverlay };
 export type Layout = "sidebar" | "zen";
 export type Focus = "input" | "scroll" | "explorer";
-export type Overlay = "help" | "sessions" | "buffers" | "models" | "compact" | null;
+/** A shown overlay panel, or null for none. `AppOverlay` is the shared source. */
+export type Overlay = AppOverlay | null;
 /** Left IDE explorer pane: a project file tree, or hidden. */
 export type LeftPanel = "files" | "hidden";
 
