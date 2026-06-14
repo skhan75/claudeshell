@@ -8,6 +8,21 @@ memory across sessions; **read it at the start of work and append to it as you g
 
 ## 2026-06-14
 
+### DECISION — park the agent fleet (`/parallel` + `/swarm`); keep `/fork` + dashboard
+- **Parked**, not deleted: the multi-agent *spawning* (`/parallel`, `/swarm`, `spawnWorkers`)
+  stays in the tree (tested, behind explicit commands) but we stop investing and it is NOT a
+  production headline. See `TODO.md`.
+- **Why the case is weak:** (1) Claude Code already parallelizes internally via subagents — for
+  "go faster on one task" the fleet is largely redundant. (2) The only *non-redundant* value is
+  **user-controlled comparison of independent attempts** (`/swarm` → pick a winner), a narrow use.
+  (3) Parallel *editing* hits a file-collision problem (two agents, one file → last write wins)
+  that needs heavyweight isolation (git worktrees / dir copies) — a lot of friction for thin payoff.
+- **If revisited:** the only shape worth it is **"fleet = thinking/comparing only, never edits"**
+  (`/swarm` for N independent options you compare) — zero collision risk, no isolation machinery.
+- **Keep:** `/fork` (branch one conversation — useful, standalone, no collision risk) and the
+  Ctrl+F/`/fleet` dashboard (handy for any multi-tab session). **Candidate to de-advertise:**
+  `/parallel` + `/swarm` from `DEFAULT_SLASH_COMMANDS`/help until the case is stronger.
+
 ### PLAN — Option C Phases 2–5 in one push (design-validated via workflow)
 - Ran a 5-agent design-validation workflow (4 parallel phase-designers + 1 integration synthesizer)
   to lock contracts and surface cross-phase conflicts BEFORE writing code. Locked decisions:
