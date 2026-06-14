@@ -4,3 +4,8 @@ dist/
 *.log
 .DS_Store
 .optionc-designs.json
+
+# stray local python scratch (not part of claudeshell)
+__pycache__/
+wordcount.py
+test_wordcount.py

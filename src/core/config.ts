@@ -18,9 +18,15 @@ export interface Config {
   theme: string;
   /** How many worker agents `/parallel` and `/swarm` spawn by default. */
   fleetSize: number;
+  /** Permission mode for spawned fleet workers ("default" | "acceptEdits" |
+   *  "bypassPermissions" | "plan"). "default" keeps them gated (they surface in the
+   *  fleet dashboard to answer); a more autonomous mode lets a fleet run unattended. */
+  fleetPermissionMode: string;
   /** Cost-guard caps (USD). Empty object → no budget. */
   budget: BudgetCaps;
 }
+
+const PERMISSION_MODES = new Set(["default", "acceptEdits", "bypassPermissions", "plan"]);
 
 /** Clamp a fleet size to a sane range; fall back to 3 for non-finite/≤0. */
 function sanitizeFleetSize(n: number | undefined): number {
@@ -66,7 +72,7 @@ interface RawConfig {
   keys?: Record<string, string>;
   models?: string[];
   theme?: { name?: string };
-  fleet?: { size?: number };
+  fleet?: { size?: number; permissionMode?: string };
   budget?: BudgetCaps;
 }
 
@@ -100,8 +106,13 @@ function sanitize(raw: Record<string, unknown>): RawConfig {
     out.theme = { name: (themeRaw as { name: string }).name };
   }
   const fleet = raw.fleet;
-  if (fleet && typeof fleet === "object" && typeof (fleet as { size?: unknown }).size === "number") {
-    out.fleet = { size: (fleet as { size: number }).size };
+  if (fleet && typeof fleet === "object") {
+    const f: { size?: number; permissionMode?: string } = {};
+    const size = (fleet as { size?: unknown }).size;
+    if (typeof size === "number") f.size = size;
+    const pm = (fleet as { permissionMode?: unknown }).permissionMode;
+    if (typeof pm === "string" && PERMISSION_MODES.has(pm)) f.permissionMode = pm;
+    out.fleet = f;
   }
   const budget = raw.budget;
   if (budget && typeof budget === "object") {
@@ -144,6 +155,7 @@ export function loadConfig(opts: { globalDir?: string; cwd?: string } = {}): Con
     models: (p.models?.length ? p.models : undefined) ?? (g.models?.length ? g.models : undefined) ?? DEFAULT_MODELS,
     theme: p.theme?.name ?? g.theme?.name ?? "cyberpunk",
     fleetSize: sanitizeFleetSize(p.fleet?.size ?? g.fleet?.size),
+    fleetPermissionMode: p.fleet?.permissionMode ?? g.fleet?.permissionMode ?? "default",
     budget: { ...sanitizeBudget(g.budget), ...sanitizeBudget(p.budget) },
   };
 }

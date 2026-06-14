@@ -17,6 +17,19 @@ describe("execSlash — the single routed-action sink", () => {
     expect(ctx.store.getState().overlay).toBe("fleet");
   });
 
+  it("over the hard budget cap, /parallel spawns nothing and does NOT open the fleet", () => {
+    const ctx = makeCtx();
+    const a = ctx.manager.active!;
+    a.transcript.usage.costUsd = 10;
+    ctx.manager.setBudget({ hardUsd: 5 });
+    const before = ctx.manager.tabs.length;
+    expect(execSlash(routeSlash("/parallel build it"), ctx)).toBe(true);
+    const workers = ctx.manager.tabs.filter((t) => t.kind === "claude" && t.title.startsWith("▶"));
+    expect(workers).toHaveLength(0);
+    expect(ctx.manager.tabs.length).toBe(before);
+    expect(ctx.store.getState().overlay).not.toBe("fleet");
+  });
+
   it("/swarm <task> spawns a swarm group and opens the dashboard", () => {
     const ctx = makeCtx();
     expect(execSlash(routeSlash("/swarm design the api"), ctx)).toBe(true);

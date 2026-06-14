@@ -16,6 +16,11 @@ export interface SessionOpts {
   /** Structural fleet/swarm tag (e.g. "swarm"). Set by spawnWorkers/fork; the fleet
    *  dashboard + swarm compare filter on this, never on the title glyph. */
   group?: string;
+  /** Initial permission mode (fleet workers can run more autonomously than "default"). */
+  permissionMode?: string;
+  /** When resuming, branch to a NEW server-side session id instead of continuing the
+   *  source (SDK `forkSession`). Used by fork() so two clients never share one id. */
+  forkSession?: boolean;
   onChange?: () => void;
 }
 
@@ -139,6 +144,7 @@ export class Session {
   private queryFn: QueryFn;
   private claudeId?: string;
   private model?: string;
+  private readonly forkSession: boolean;
   private onChange: () => void;
   private titled: boolean;
 
@@ -150,6 +156,8 @@ export class Session {
     this.titled = opts.title !== undefined;
     this.queryFn = opts.queryFn ?? lazyQuery();
     this.claudeId = opts.resumeSessionId;
+    this.forkSession = opts.forkSession ?? false;
+    if (opts.permissionMode) this.permissionMode = opts.permissionMode;
     this.onChange = opts.onChange ?? (() => {});
   }
 
@@ -205,6 +213,9 @@ export class Session {
         this.requestPermission(toolName, input, (o?.suggestions ?? []) as PermissionRequest["suggestions"]),
     };
     if (this.claudeId) options.resume = this.claudeId;
+    // A fork resumes the parent's context but branches to a NEW server-side session id,
+    // so the parent and fork never have two live queries on one id (concurrent-resume safe).
+    if (this.claudeId && this.forkSession) options.forkSession = true;
     if (this.model) options.model = this.model;
     this.handle = this.queryFn({ prompt: this.queue, options });
     void this.pump();

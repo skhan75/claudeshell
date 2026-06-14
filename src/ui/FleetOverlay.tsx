@@ -50,6 +50,12 @@ export function FleetOverlay({ onClose }: { onClose: () => void }) {
   const clamped = rows.length ? Math.min(sel, rows.length - 1) : 0;
   const swarm = manager.tabs.filter((t): t is Session => t.kind === "claude" && t.group === "swarm");
 
+  // Keep `sel` in range when the fleet shrinks (a closed/interrupted agent) so the
+  // arrow keys never feel dead from a stale-high selection index.
+  useEffect(() => {
+    setSel((s) => Math.min(s, Math.max(0, rows.length - 1)));
+  }, [rows.length]);
+
   useInput((input, key) => {
     if (key.escape || (key.ctrl && input === "f")) {
       onClose();
@@ -60,11 +66,11 @@ export function FleetOverlay({ onClose }: { onClose: () => void }) {
       return;
     }
     if (input === "j" || key.downArrow) {
-      setSel((s) => Math.min(s + 1, rows.length - 1));
+      setSel(Math.min(clamped + 1, rows.length - 1));
       return;
     }
     if (input === "k" || key.upArrow) {
-      setSel((s) => Math.max(0, s - 1));
+      setSel(Math.max(0, clamped - 1));
       return;
     }
     if (key.return) {
@@ -79,7 +85,7 @@ export function FleetOverlay({ onClose }: { onClose: () => void }) {
       if (tab && tab.kind === "claude") void tab.interrupt(); // stays open; list updates via bump
       return;
     }
-  });
+  }, { isActive: !manager.active?.pendingPermission });
 
   if (compare) {
     const entries = swarmCompare(swarm);
@@ -133,8 +139,8 @@ export function FleetOverlay({ onClose }: { onClose: () => void }) {
           </Box>
         ) : (
           <Box flexDirection="column" marginTop={1}>
-            {/* column header */}
-            <Text color={theme.dim}>
+            {/* column header — truncate like the data rows so it can't wrap + misalign */}
+            <Text color={theme.dim} wrap="truncate">
               {"  "}
               {pad("AGENT", 20)} {pad("STATUS", 12)} {pad("ACTIVITY", 30)} {"  ELAP"} {"   CTX"} {"   COST"}
             </Text>

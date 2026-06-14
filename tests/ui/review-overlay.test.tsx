@@ -73,6 +73,64 @@ describe("ReviewOverlay", () => {
     expect(calls.some((c) => c[0] === "add" && c.includes("src/a.ts"))).toBe(true);
   });
 
+  it("renders the untracked + binary placeholder panes", async () => {
+    const untrackedRun: GitRun = async (args) => {
+      if (args[0] === "rev-parse") return "/repo\n";
+      if (args[0] === "status") return "?? new.txt\0";
+      return "";
+    };
+    const ctx1 = makeCtx();
+    const f1 = renderWithCtx(<ReviewOverlay onClose={() => {}} runner={new Review("/repo", untrackedRun)} />, ctx1);
+    await settle();
+    expect(f1.lastFrame()).toContain("(no diff — new/untracked)");
+    cleanupInk();
+
+    const binaryRun: GitRun = async (args) => {
+      if (args[0] === "rev-parse") return "/repo\n";
+      if (args[0] === "status") return " M logo.png\0";
+      if (args[0] === "diff") return "Binary files a/logo.png and b/logo.png differ";
+      return "";
+    };
+    const ctx2 = makeCtx();
+    const f2 = renderWithCtx(<ReviewOverlay onClose={() => {}} runner={new Review("/repo", binaryRun)} />, ctx2);
+    await settle();
+    expect(f2.lastFrame()).toContain("(binary file — no diff)");
+  });
+
+  it("u unstages the selected file (records the restore --staged argv)", async () => {
+    const calls: string[][] = [];
+    const run: GitRun = async (args) => {
+      calls.push(args);
+      if (args[0] === "rev-parse") return "/repo\n";
+      if (args[0] === "status") return "M  src/a.ts\0";
+      if (args[0] === "diff") return "diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@\n+x";
+      return "";
+    };
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<ReviewOverlay onClose={() => {}} runner={new Review("/repo", run)} />, ctx);
+    await settle();
+    stdin.write("u");
+    await settle();
+    expect(calls.some((c) => c[0] === "restore" && c.includes("--staged") && c.includes("src/a.ts"))).toBe(true);
+  });
+
+  it("r refreshes — re-running collect() reflects a changed working tree", async () => {
+    let phase = 0;
+    const run: GitRun = async (args) => {
+      if (args[0] === "rev-parse") return "/repo\n";
+      if (args[0] === "status") return phase === 0 ? " M a.ts\0" : " M a.ts\0 M b.ts\0";
+      return "diff --git a/x b/x\n@@ -1 +1 @@\n+x";
+    };
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<ReviewOverlay onClose={() => {}} runner={new Review("/repo", run)} />, ctx);
+    await settle();
+    expect(lastFrame()).not.toContain("b.ts");
+    phase = 1;
+    stdin.write("r");
+    await settle();
+    expect(lastFrame()).toContain("b.ts");
+  });
+
   it("shows 'working tree clean' for an empty changeset; esc closes", async () => {
     const run: GitRun = async (args) => (args[0] === "rev-parse" ? "/repo\n" : "");
     const ctx = makeCtx();

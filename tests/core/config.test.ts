@@ -23,7 +23,15 @@ describe("loadConfig", () => {
     expect(cfg.pills).toEqual(DEFAULT_PILLS);
     expect(cfg.keys).toEqual(DEFAULT_KEYS);
     expect(cfg.fleetSize).toBe(3);
+    expect(cfg.fleetPermissionMode).toBe("default");
     expect(cfg.budget).toEqual({});
+  });
+
+  it("reads an allowlisted [fleet] permissionMode and rejects unknown values", () => {
+    writeFileSync(join(projectDir, ".claudeshell.toml"), `[fleet]\npermissionMode = "acceptEdits"\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).fleetPermissionMode).toBe("acceptEdits");
+    writeFileSync(join(projectDir, ".claudeshell.toml"), `[fleet]\npermissionMode = "yolo"\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).fleetPermissionMode).toBe("default");
   });
 
   it("reads [fleet] size and [budget] caps, clamping/sanitizing bad values", () => {

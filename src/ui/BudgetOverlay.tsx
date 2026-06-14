@@ -64,7 +64,7 @@ export function BudgetOverlay({ onClose }: { onClose: () => void }) {
       return;
     }
     if (input === "c") manager.setBudget({});
-  });
+  }, { isActive: !manager.active?.pendingPermission });
 
   const capRow = (which: "soft" | "hard", value: number | undefined) => {
     const isEditing = editing === which;

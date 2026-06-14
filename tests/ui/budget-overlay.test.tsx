@@ -31,6 +31,34 @@ describe("BudgetOverlay", () => {
     expect(ctx.manager.budget.softUsd).toBe(5);
   });
 
+  it("editing one cap preserves the other (s with a pre-existing hard cap)", async () => {
+    const ctx = makeCtx();
+    ctx.manager.setBudget({ hardUsd: 10 });
+    const { stdin } = renderWithCtx(<BudgetOverlay onClose={() => {}} />, ctx);
+    await tick();
+    stdin.write("s");
+    await tick();
+    stdin.write("5");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(ctx.manager.budget).toEqual({ softUsd: 5, hardUsd: 10 });
+  });
+
+  it("h sets the hard cap while preserving an existing soft cap", async () => {
+    const ctx = makeCtx();
+    ctx.manager.setBudget({ softUsd: 2 });
+    const { stdin } = renderWithCtx(<BudgetOverlay onClose={() => {}} />, ctx);
+    await tick();
+    stdin.write("h");
+    await tick();
+    stdin.write("9");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(ctx.manager.budget).toEqual({ softUsd: 2, hardUsd: 9 });
+  });
+
   it("c clears caps; esc closes", async () => {
     const ctx = makeCtx();
     ctx.manager.setBudget({ hardUsd: 10 });

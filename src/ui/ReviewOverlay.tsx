@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { join } from "node:path";
 import { Box, Text, useInput, useStdout } from "ink";
 import { useAppCtx } from "./context.js";
@@ -52,8 +52,14 @@ export function ReviewOverlay({ onClose, runner }: { onClose: () => void; runner
 
   const cwd = manager.activeTab?.cwd ?? process.cwd();
   const review = useMemo(() => runner ?? new Review(cwd), [runner, cwd]);
+  // Monotonic request id: only the latest collect() wins, so rapid s/u/r can't render a
+  // stale changeset, and a resolve after unmount simply never matches the final seq.
+  const seqRef = useRef(0);
   const reload = useCallback(() => {
-    void review.collect().then(setRes);
+    const seq = ++seqRef.current;
+    void review.collect().then((r) => {
+      if (seq === seqRef.current) setRes(r);
+    });
   }, [review]);
   useEffect(() => reload(), [reload]);
 
@@ -63,18 +69,23 @@ export function ReviewOverlay({ onClose, runner }: { onClose: () => void; runner
 
   const diffHeight = Math.max(4, (stdout?.rows ?? 24) - 8);
 
+  // Keep the file selection in range when the changeset shrinks on refresh.
+  useEffect(() => {
+    setSel((s) => Math.min(s, Math.max(0, files.length - 1)));
+  }, [files.length]);
+
   useInput((input, key) => {
     if (key.escape) {
       onClose();
       return;
     }
     if (input === "j" || key.downArrow) {
-      setSel((s) => Math.min(s + 1, files.length - 1));
+      setSel(Math.min(selIdx + 1, files.length - 1));
       setScroll(0);
       return;
     }
     if (input === "k" || key.upArrow) {
-      setSel((s) => Math.max(0, s - 1));
+      setSel(Math.max(0, selIdx - 1));
       setScroll(0);
       return;
     }
@@ -101,10 +112,16 @@ export function ReviewOverlay({ onClose, runner }: { onClose: () => void; runner
       return;
     }
     if (input === "r") reload();
-  });
+  }, { isActive: !manager.active?.pendingPermission });
 
   const diffLines = cur ? cur.diff.split("\n") : [];
   const shown = diffLines.slice(scroll, scroll + diffHeight);
+
+  // Window the changed-files list around the selection so long changesets don't clip silently.
+  const listCap = Math.max(3, diffHeight);
+  const listStart = Math.max(0, Math.min(selIdx - Math.floor(listCap / 2), Math.max(0, files.length - listCap)));
+  const shownFiles = files.slice(listStart, listStart + listCap);
+  const filesBelow = files.length - (listStart + shownFiles.length);
 
   return (
     <Box flexDirection="column" flexGrow={1}>
@@ -122,11 +139,12 @@ export function ReviewOverlay({ onClose, runner }: { onClose: () => void; runner
           </Box>
         ) : (
           <Box flexDirection="row" marginTop={1}>
-            {/* LEFT: changed files */}
+            {/* LEFT: changed files (windowed around the selection) */}
             <Box flexDirection="column" width={38}>
-              {files.map((f, i) => {
+              {shownFiles.map((f, i) => {
+                const idx = listStart + i;
                 const g = statusGlyph(f);
-                const selected = i === selIdx;
+                const selected = idx === selIdx;
                 const counts = `+${f.additions} -${f.deletions}`;
                 const name = f.path.length > 22 ? "…" + f.path.slice(-21) : f.path;
                 return (
@@ -139,12 +157,13 @@ export function ReviewOverlay({ onClose, runner }: { onClose: () => void; runner
                   </Text>
                 );
               })}
+              {filesBelow > 0 && <Text color={theme.dim}>{`  … +${filesBelow} more`}</Text>}
             </Box>
             {/* RIGHT: diff of the selected file */}
             <Box flexDirection="column" flexGrow={1} paddingLeft={1}>
               {cur?.binary ? (
                 <Text color={theme.dim}>(binary file — no diff)</Text>
-              ) : shown.length === 0 ? (
+              ) : !cur || cur.diff.trim() === "" ? (
                 <Text color={theme.dim}>(no diff — new/untracked)</Text>
               ) : (
                 shown.map((ln, i) => (

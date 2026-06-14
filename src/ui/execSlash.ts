@@ -24,12 +24,15 @@ export function execSlash(action: SlashAction, ctx: AppCtx): boolean {
       store.getState().setOverlay("compact");
       return true;
     case "parallel": {
-      const workers = manager.spawnWorkers(action.task, config.fleetSize, { label: "worker" });
+      const workers = manager.spawnWorkers(action.task, config.fleetSize, {
+        label: "worker",
+        permissionMode: config.fleetPermissionMode,
+      });
       if (workers.length) store.getState().setOverlay("fleet");
       return true;
     }
     case "swarm": {
-      const workers = manager.swarm(action.task, config.fleetSize);
+      const workers = manager.swarm(action.task, config.fleetSize, { permissionMode: config.fleetPermissionMode });
       if (workers.length) store.getState().setOverlay("fleet");
       return true;
     }

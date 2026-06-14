@@ -73,6 +73,23 @@ memory across sessions; **read it at the start of work and append to it as you g
 - No new global key (Ctrl+F is fleet); `/review` routes via the Phase-0 router. HelpOverlay
   gains a "Fleet / review / cost" group. 404 tests pass, typecheck clean.
 
+### Review — adversarial multi-agent review of Phases 0–5 (24 agents) → fixes landed
+- 5 dimension reviewers + per-finding verification: **17 confirmed-real, 2 refuted, 0 uncertain.**
+- **Fixes:** fork now passes the SDK's `forkSession: true` (branches to a NEW server-side id →
+  no two-clients-on-one-id concurrent-resume hazard; `resume` alone was the bug). Fleet/Review
+  overlays: sel-clamp on shrink + clamp nav off the live index (dead-arrow bug); Fleet column
+  header `wrap="truncate"` (misaligned <~92 cols). App closes any open overlay when the active
+  session raises a permission (dialog was hidden behind it + ate answer keys); overlays also
+  guard `useInput` on `!pendingPermission`. ReviewOverlay: monotonic `seqRef` on collect()
+  (last-request-wins, unmount-safe) + windowed file list. Palette fork routes via `execSlash`.
+- **Worker autonomy:** `[fleet] permissionMode` config (default "default") threaded to spawned
+  workers so a fleet can run unattended; default-gated workers still surface in the dashboard
+  (focus to answer). CAVEAT: fleet workers share one cwd — parallel edits can collide on disk
+  (worktree isolation is a future improvement, not in scope).
+- +12 tests (now 426): replace-compact, fork forkSession, budget cap-merge + h-branch, review
+  status codes + binary-patch + untracked/binary panes + u/r, over-budget spawn, perm-mode
+  threading, overlay-closes-on-permission. Refuted findings (2) were already-correct code.
+
 ### Shipped — Option C Phase 5: fork + swarm + compare
 - `SessionManager.fork(s)→Session|null`: resumes the parent's `claudeSessionId` in a new
   `⑂ <title>` tab. Returns null (no tab) when the parent has no resumable context yet OR is

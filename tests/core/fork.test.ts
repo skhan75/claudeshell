@@ -49,4 +49,23 @@ describe("SessionManager.fork", () => {
     expect(f1.title).toBe("⑂ feature");
     expect(f2.title).toBe("⑂ feature"); // not "⑂ ⑂ feature"
   });
+
+  it("forks with forkSession=true so it branches to a NEW server id (no shared-id overlap)", () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const recQuery: QueryFn = ({ prompt, options }) => {
+      seen.push(options);
+      async function* g() {
+        for await (const _ of prompt) return;
+      }
+      return g();
+    };
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: recQuery });
+    const parent = m.create({ resumeSessionId: "claude-abc" }); // warms → records parent options
+    m.fork(parent); // warms the fork → records fork options
+    const forkOpts = seen[seen.length - 1];
+    expect(forkOpts.resume).toBe("claude-abc");
+    expect(forkOpts.forkSession).toBe(true);
+    // A normal (non-fork) resumed session must NOT set forkSession.
+    expect(seen[0].forkSession).toBeUndefined();
+  });
 });

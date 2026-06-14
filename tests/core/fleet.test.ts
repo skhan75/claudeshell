@@ -105,6 +105,16 @@ describe("projectFleet", () => {
     const term = { kind: "terminal", id: "t1", title: "sh" } as unknown as Tab;
     expect(projectFleet([term], 0)).toEqual([]);
   });
+
+  it("marks no worker active when activeIndex points at an interleaved terminal (or out of range)", () => {
+    const a = fakeSession({ id: "s1", title: "main" });
+    const term = { kind: "terminal", id: "t1", title: "sh" } as unknown as Tab;
+    const b = fakeSession({ id: "s2", title: `${WORKER_GLYPH} worker 1/1` });
+    const rows = projectFleet([a, term, b], 1); // activeIndex 1 = the terminal
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => !r.active)).toBe(true);
+    expect(projectFleet([a, term, b], 99).every((r) => !r.active)).toBe(true);
+  });
 });
 
 describe("swarmCompare", () => {

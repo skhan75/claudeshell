@@ -11,10 +11,18 @@ describe("parsePorcelain", () => {
     expect(e[2]).toMatchObject({ path: "new file.txt", status: "untracked", staged: false, unstaged: true });
   });
 
-  it("handles rename records in new\\0old order", () => {
-    const e = parsePorcelain("R  new.ts\0old.ts\0");
-    expect(e).toHaveLength(1);
-    expect(e[0]).toMatchObject({ path: "new.ts", oldPath: "old.ts", status: "renamed", staged: true });
+  it("handles rename records in new\\0old order (staged + unstaged variants)", () => {
+    const staged = parsePorcelain("R  new.ts\0old.ts\0");
+    expect(staged[0]).toMatchObject({ path: "new.ts", oldPath: "old.ts", status: "renamed", staged: true, unstaged: false });
+    const unstaged = parsePorcelain(" R new.ts\0old.ts\0");
+    expect(unstaged[0]).toMatchObject({ path: "new.ts", oldPath: "old.ts", status: "renamed", staged: false, unstaged: true });
+  });
+
+  it("maps added / deleted / copied / conflicted status codes", () => {
+    expect(parsePorcelain("A  added.ts\0")[0]).toMatchObject({ status: "added", staged: true, unstaged: false });
+    expect(parsePorcelain(" D del.ts\0")[0]).toMatchObject({ status: "deleted", staged: false, unstaged: true });
+    expect(parsePorcelain("C  copy.ts\0src.ts\0")[0]).toMatchObject({ status: "copied", oldPath: "src.ts", staged: true });
+    expect(parsePorcelain("UU conflict.ts\0")[0]).toMatchObject({ status: "conflicted", staged: true, unstaged: true });
   });
 });
 
@@ -33,6 +41,7 @@ describe("diffStats", () => {
     const diff = ["diff --git a/x b/x", "--- a/x", "+++ b/x", "@@ -1 +1,2 @@", "+one", "+two", "-old"].join("\n");
     expect(diffStats(diff)).toEqual({ additions: 2, deletions: 1, binary: false });
     expect(diffStats("Binary files a/logo.png and b/logo.png differ").binary).toBe(true);
+    expect(diffStats("GIT binary patch\nliteral 12\n...").binary).toBe(true);
   });
 });
 

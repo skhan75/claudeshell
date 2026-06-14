@@ -51,6 +51,21 @@ describe("SessionManager", () => {
     expect(mgr.tabs.some((t) => t.id === first.id)).toBe(true); // original preserved
   });
 
+  it("requestCompact('replace') condenses in place: resets the context, opens no tab", async () => {
+    const mgr = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: summarizeQuery });
+    const s = mgr.create();
+    s.transcript.addUser("did a bunch of work SENTINEL");
+    mgr.requestCompact("replace", "");
+    await vi.waitFor(() => {
+      expect(
+        s.transcript.blocks.some((b) => b.kind === "user" && b.text.includes("compacted summary of our prior conversation"))
+      ).toBe(true);
+    });
+    // The verbose history was reset (not appended to), and no new tab was opened.
+    expect(s.transcript.blocks.some((b) => b.kind === "user" && b.text.includes("SENTINEL"))).toBe(false);
+    expect(mgr.tabs.length).toBe(1);
+  });
+
   it("requestCompact('summary') summarizes in place without opening a tab", async () => {
     const mgr = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: summarizeQuery });
     const s = mgr.create();
@@ -361,12 +376,22 @@ describe("SessionManager", () => {
     expect(m.spawnWorkers("", 2, {})).toEqual([]);
   });
 
-  it("spawnWorkers restores the caller's active tab (does not yank focus to a worker)", () => {
+  it("spawnWorkers restores the caller's active tab even from a non-zero, non-last index", () => {
     const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
-    const main = m.create();
-    m.spawnWorkers("go", 3, {});
-    expect(m.activeIndex).toBe(0);
-    expect(m.active?.id).toBe(main.id);
+    m.create(); // index 0
+    const caller = m.create(); // index 1 (middle: a wrong restore to 0 or last would fail)
+    m.create(); // index 2
+    m.activate(1);
+    m.spawnWorkers("go", 3, {}); // workers appended at 3,4,5
+    expect(m.activeIndex).toBe(1);
+    expect(m.active?.id).toBe(caller.id);
+  });
+
+  it("spawnWorkers threads permissionMode to each worker", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    m.create();
+    const ws = m.spawnWorkers("go", 2, { permissionMode: "acceptEdits" });
+    expect(ws.every((w) => w.permissionMode === "acceptEdits")).toBe(true);
   });
 
   it("spawnWorkers fires subscribers and workers pump in the background while another tab is active", async () => {

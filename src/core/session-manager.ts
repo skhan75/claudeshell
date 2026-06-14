@@ -121,7 +121,7 @@ export class SessionManager {
     return this.tabs[this.activeIndex];
   }
 
-  create(init?: { resumeSessionId?: string; title?: string; group?: string }): Session {
+  create(init?: { resumeSessionId?: string; title?: string; group?: string; permissionMode?: string; forkSession?: boolean }): Session {
     const id = `s${++this.counter}`;
     const session = new Session({
       id,
@@ -130,6 +130,8 @@ export class SessionManager {
       resumeSessionId: init?.resumeSessionId,
       title: init?.title,
       group: init?.group,
+      permissionMode: init?.permissionMode,
+      forkSession: init?.forkSession,
       onChange: () => this.onSessionChange(session),
     });
     this.tabs.push(session);
@@ -147,7 +149,7 @@ export class SessionManager {
    * preserved (the UI opens the Fleet dashboard instead of yanking focus into a worker).
    * Returns the created sessions.
    */
-  spawnWorkers(task: string, n: number, opts?: { group?: string; label?: string }): Session[] {
+  spawnWorkers(task: string, n: number, opts?: { group?: string; label?: string; permissionMode?: string }): Session[] {
     if (!task.trim()) return [];
     // Cost-guard: a fleet is the big multiplicative spender — block it over the hard cap.
     const guard = this.guardSpend("spawn");
@@ -162,7 +164,7 @@ export class SessionManager {
     const workers: Session[] = [];
     // First pass: create all tabs (create() warms each — workers SHOULD start).
     for (let i = 1; i <= count; i++) {
-      workers.push(this.create({ title: workerTitle(i, count, label), group: opts?.group }));
+      workers.push(this.create({ title: workerTitle(i, count, label), group: opts?.group, permissionMode: opts?.permissionMode }));
     }
     // Second pass: hand each worker its task.
     for (const w of workers) w.send(task);
@@ -177,8 +179,8 @@ export class SessionManager {
    * `group: "swarm"` so the fleet dashboard's compare view can pick them out).
    * A thin framing over {@link spawnWorkers}; inherits its cost-guard + focus behavior.
    */
-  swarm(task: string, n: number, opts?: { group?: string }): Session[] {
-    return this.spawnWorkers(task, n, { group: opts?.group ?? "swarm", label: "swarm" });
+  swarm(task: string, n: number, opts?: { group?: string; permissionMode?: string }): Session[] {
+    return this.spawnWorkers(task, n, { group: opts?.group ?? "swarm", label: "swarm", permissionMode: opts?.permissionMode });
   }
 
   /**
@@ -190,10 +192,11 @@ export class SessionManager {
   fork(s: Session, opts?: { group?: string }): Session | null {
     const rid = s.claudeSessionId;
     if (!rid) return null;
-    // v1: only fork an idle/crashed parent — never while a turn is in flight.
+    // Fork from a settled point — never mid-turn. forkSession branches to a fresh
+    // server-side id, so the parent and fork never share one live session id.
     if (s.status === "processing" || s.status === "awaiting-permission" || s.status === "awaiting-input") return null;
     const base = s.title.replace(/^⑂ /, ""); // don't stack ⑂ prefixes on re-forks
-    return this.create({ resumeSessionId: rid, title: `⑂ ${base}`, group: opts?.group });
+    return this.create({ resumeSessionId: rid, forkSession: true, title: `⑂ ${base}`, group: opts?.group });
   }
 
   createTerminal(init?: { spawnFn?: SpawnFn; cols?: number; rows?: number; cwd?: string }): Terminal {

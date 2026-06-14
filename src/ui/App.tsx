@@ -92,6 +92,13 @@ export function App() {
     };
   }, [stdout, store]);
 
+  // An overlay (fleet/budget/review/…) renders ABOVE the chat's permission dialog in the
+  // if/else chain. If the active session raises a permission while an overlay is open, the
+  // dialog would be hidden and the overlay would eat the answer keys — so close the overlay.
+  useEffect(() => {
+    if (pending && overlay) store.getState().setOverlay(null);
+  }, [pending, overlay, store]);
+
   const termWidth = stdout?.columns ?? 80;
   const tooSmall = (stdout?.columns ?? 80) < 60 || (stdout?.rows ?? 24) < 14;
 

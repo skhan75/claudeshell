@@ -233,6 +233,22 @@ describe("App overlays + onboarding", () => {
     expect(ctx.store.getState().overlay).toBe("fleet");
   });
 
+  it("closes an open overlay when the active session raises a permission (so the dialog surfaces)", async () => {
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x06)); // ctrl+f → fleet overlay
+    await tick();
+    expect(ctx.store.getState().overlay).toBe("fleet");
+    // The active session raises a permission request.
+    ctx.manager.active!.pendingPermission = {
+      id: "p1", toolName: "Bash", input: {}, suggestions: [], resolve: () => {},
+    };
+    ctx.store.getState().bump();
+    await tick();
+    expect(ctx.store.getState().overlay).toBeNull(); // overlay auto-closed → dialog can render
+  });
+
   it("ctrl+→ / ctrl+← cycle to the next / previous tab (with wraparound)", async () => {
     const ctx = makeCtx();
     ctx.manager.create();
