@@ -53,6 +53,52 @@ function clip(s: string, w: number): string {
 const RICH_TOOLS = new Set(["Edit", "MultiEdit", "Write", "NotebookEdit", "Bash"]);
 const MAX_TOOL_BODY = 16; // cap a tool's diff/output, with a "+N more" footer
 
+/** True when a Bash command's output should be rendered as a colorized git diff. */
+function isDiffCommand(cmd: string): boolean {
+  return /\bgit\s+(diff|show)\b/.test(cmd) || /\bgit\s+log\b[^\n]*(-p|--patch)/.test(cmd) || /^\s*diff\b/.test(cmd);
+}
+
+/**
+ * Color ONE line of git diff / `--stat` output git-style: additions green, deletions red,
+ * hunk headers purple, file headers dim. A `--stat` histogram (`path | 9 ++++--`) splits its
+ * +/- graph into green/red runs. Returns spans so a single line can carry multiple colors.
+ */
+function gitDiffSpans(line: string): Span[] {
+  const stat = /^(.*\|\s*\d+\s+)([+-]+)(\s*)$/.exec(line);
+  if (stat) {
+    const spans: Span[] = [{ text: stat[1], color: theme.dim }];
+    for (const run of stat[2].match(/\++|-+/g) ?? []) {
+      spans.push({ text: run, color: run[0] === "+" ? theme.good : theme.bad });
+    }
+    return spans;
+  }
+  if (/^@@.*@@/.test(line)) return [{ text: line, color: theme.purple }];
+  if (/^(diff |index |--- |\+\+\+ |new file|deleted file|rename |similarity |copy |Binary )/.test(line)) {
+    return [{ text: line, color: theme.dim }];
+  }
+  if (line.startsWith("+")) return [{ text: line, color: theme.good }];
+  if (line.startsWith("-")) return [{ text: line, color: theme.bad }];
+  return [{ text: line, color: theme.dim }];
+}
+
+/** Truncate a span list to `w` visible cells with a trailing ellipsis (keeps per-span color). */
+function clipSpans(spans: Span[], w: number): Span[] {
+  let used = 0;
+  const out: Span[] = [];
+  for (const s of spans) {
+    if (used >= w) break;
+    const room = w - used;
+    if (s.text.length <= room) {
+      out.push(s);
+      used += s.text.length;
+    } else {
+      out.push({ ...s, text: s.text.slice(0, Math.max(1, room - 1)) + "…" });
+      break;
+    }
+  }
+  return out;
+}
+
 /**
  * Render a tool call like the CLI shows its work: a header (⚙ name · file · status)
  * plus the actual change — a green/red diff for Edit/Write, the command + output for
@@ -91,24 +137,31 @@ export function toolLines(
     ],
   }];
 
-  const body: { text: string; color: string }[] = [];
+  // Each body entry is a span list so a line can carry multiple colors (git --stat graphs).
+  const body: Span[][] = [];
   const diff = (oldS: string, newS: string) => {
-    for (const l of oldS ? oldS.split("\n") : []) body.push({ text: "- " + l, color: theme.bad });
-    for (const l of newS ? newS.split("\n") : []) body.push({ text: "+ " + l, color: theme.good });
+    for (const l of oldS ? oldS.split("\n") : []) body.push([{ text: "- " + l, color: theme.bad }]);
+    for (const l of newS ? newS.split("\n") : []) body.push([{ text: "+ " + l, color: theme.good }]);
   };
   if (b.name === "Edit" || b.name === "NotebookEdit") {
     diff(String(input.old_string ?? input.old_source ?? ""), String(input.new_string ?? input.new_source ?? ""));
   } else if (b.name === "MultiEdit" && Array.isArray(input.edits)) {
     for (const e of input.edits as Array<Record<string, unknown>>) diff(String(e.old_string ?? ""), String(e.new_string ?? ""));
   } else if (b.name === "Write" && typeof input.content === "string") {
-    for (const l of input.content.split("\n")) body.push({ text: "+ " + l, color: theme.good });
+    for (const l of input.content.split("\n")) body.push([{ text: "+ " + l, color: theme.good }]);
   } else if (b.name === "Bash" && typeof input.command === "string") {
-    body.push({ text: "$ " + input.command, color: theme.fg });
-    if (b.result) for (const l of b.result.replace(/\n+$/, "").split("\n")) body.push({ text: l, color: errored ? theme.bad : theme.dim });
+    body.push([{ text: "$ " + input.command, color: theme.fg }]);
+    // git diff/show output is colorized green/red git-style; other output stays quiet.
+    const asDiff = isDiffCommand(input.command);
+    if (b.result) {
+      for (const l of b.result.replace(/\n+$/, "").split("\n")) {
+        body.push(asDiff ? gitDiffSpans(l) : [{ text: l, color: errored ? theme.bad : theme.dim }]);
+      }
+    }
   }
 
   const shown = body.slice(0, MAX_TOOL_BODY);
-  for (const x of shown) lines.push({ spans: [{ text: "  " + clip(x.text, bodyW), color: x.color }] });
+  for (const spans of shown) lines.push({ spans: [{ text: "  " }, ...clipSpans(spans, bodyW)] });
   if (body.length > shown.length) {
     lines.push({ spans: [{ text: `  … +${body.length - shown.length} more lines`, color: theme.dim }] });
   }

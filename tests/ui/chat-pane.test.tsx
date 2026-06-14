@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import React from "react";
 import { ChatPane, wrapText, chromeRows, toolLines } from "../../src/ui/ChatPane.js";
 import { lineText } from "../../src/ui/wrap-spans.js";
+import { theme } from "../../src/ui/theme.js";
 import type { TranscriptBlock } from "../../src/core/types.js";
 import { renderWithCtx, makeCtx, cleanupInk, tick } from "./helpers.js";
 
@@ -269,6 +270,27 @@ describe("toolLines — rich tool rendering", () => {
 
   it("marks an errored tool with ✖", () => {
     expect(text(tool({ name: "Bash", ok: false, input: { command: "false" }, result: "boom" }))).toContain("✖");
+  });
+
+  const spansOf = (b: Extract<TranscriptBlock, { kind: "tool" }>, w = 80) => toolLines(b, w).flatMap((l) => l.spans);
+
+  it("colorizes `git diff` output git-style (green +, red -, purple hunk)", () => {
+    const result = ["diff --git a/x b/x", "@@ -1 +1 @@", "-old line", "+new line"].join("\n");
+    const spans = spansOf(tool({ name: "Bash", input: { command: "git diff" }, result }));
+    expect(spans.find((s) => s.text.includes("+new line"))?.color).toBe(theme.good);
+    expect(spans.find((s) => s.text.includes("-old line"))?.color).toBe(theme.bad);
+    expect(spans.find((s) => s.text.includes("@@ -1 +1 @@"))?.color).toBe(theme.purple);
+  });
+
+  it("colorizes a git --stat histogram (+ runs green, - runs red)", () => {
+    const spans = spansOf(tool({ name: "Bash", input: { command: "git show --stat" }, result: " src/a.ts | 9 +++++----" }));
+    expect(spans.find((s) => s.text === "+++++")?.color).toBe(theme.good);
+    expect(spans.find((s) => s.text === "----")?.color).toBe(theme.bad);
+  });
+
+  it("does NOT colorize non-diff Bash output (a literal + line from ls stays dim)", () => {
+    const spans = spansOf(tool({ name: "Bash", input: { command: "ls" }, result: "+notADiff" }));
+    expect(spans.find((s) => s.text.includes("+notADiff"))?.color).toBe(theme.dim);
   });
 });
 
