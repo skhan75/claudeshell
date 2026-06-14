@@ -315,6 +315,29 @@ describe("ChatPane — scrolling", () => {
     expect(lastFrame()).toContain("line-29");
   });
 
+  it("mouse wheel scrolls the transcript when mouse capture is on (off → ignored)", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    for (let i = 0; i < 30; i++) s.transcript.addInfo(`line-${i}`);
+    ctx.store.getState().setMouseScroll(true);
+    ctx.store.getState().bump();
+    const { lastFrame, stdin } = renderWithCtx(<ChatPane height={5} />, ctx);
+    expect(lastFrame()).toContain("line-29"); // pinned to the bottom
+    await tick();
+    // SGR wheel-up (button 64) repeated → scroll toward older content.
+    for (let i = 0; i < 4; i++) {
+      stdin.write("\x1b[<64;1;1M");
+      await tick();
+    }
+    expect(lastFrame()).not.toContain("line-29");
+    // Wheel-down (65) back toward the latest.
+    for (let i = 0; i < 6; i++) {
+      stdin.write("\x1b[<65;1;1M");
+      await tick();
+    }
+    expect(lastFrame()).toContain("line-29");
+  });
+
   it("draws a right-edge scrollbar only when the transcript overflows", async () => {
     const ctx = makeCtx();
     const s = ctx.manager.active!;

@@ -25,6 +25,12 @@ describe("loadConfig", () => {
     expect(cfg.fleetSize).toBe(3);
     expect(cfg.fleetPermissionMode).toBe("default");
     expect(cfg.budget).toEqual({});
+    expect(cfg.mouseScroll).toBe(false);
+  });
+
+  it("reads [mouse] scroll", () => {
+    writeFileSync(join(projectDir, ".claudeshell.toml"), `[mouse]\nscroll = true\n`);
+    expect(loadConfig({ globalDir, cwd: projectDir }).mouseScroll).toBe(true);
   });
 
   it("reads an allowlisted [fleet] permissionMode and rejects unknown values", () => {

@@ -20,6 +20,9 @@ export interface AppState {
   compactFocus: string;
   /** Ctrl+Space tab-cycle leader is armed; the next ←/→ cycles tabs (one-shot). */
   tabLeader: boolean;
+  /** When on, the terminal's mouse is captured so trackpad/wheel scroll the transcript
+   *  (costs mouse text-selection — hold Option to copy). Off by default. */
+  mouseScroll: boolean;
   hostStats: HostStats | null;
   bump(): void;
   setLayout(l: Layout): void;
@@ -31,10 +34,12 @@ export interface AppState {
   setOverlay(o: Overlay): void;
   setCompactFocus(f: string): void;
   setTabLeader(v: boolean): void;
+  setMouseScroll(v: boolean): void;
+  toggleMouseScroll(): void;
   setHostStats(h: HostStats): void;
 }
 
-export function createAppStore(initialLayout: Layout): StoreApi<AppState> {
+export function createAppStore(initialLayout: Layout, initialMouseScroll = false): StoreApi<AppState> {
   return createStore<AppState>((set) => ({
     version: 0,
     layout: initialLayout,
@@ -46,6 +51,7 @@ export function createAppStore(initialLayout: Layout): StoreApi<AppState> {
     overlay: null,
     compactFocus: "",
     tabLeader: false,
+    mouseScroll: initialMouseScroll,
     hostStats: null,
     bump: () => set((s) => ({ version: s.version + 1 })),
     setLayout: (layout) => set({ layout }),
@@ -57,6 +63,8 @@ export function createAppStore(initialLayout: Layout): StoreApi<AppState> {
     setOverlay: (overlay) => set({ overlay }),
     setCompactFocus: (compactFocus) => set({ compactFocus }),
     setTabLeader: (tabLeader) => set({ tabLeader }),
+    setMouseScroll: (mouseScroll) => set({ mouseScroll }),
+    toggleMouseScroll: () => set((s) => ({ mouseScroll: !s.mouseScroll })),
     setHostStats: (hostStats) => set({ hostStats }),
   }));
 }

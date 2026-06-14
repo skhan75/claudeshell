@@ -28,6 +28,9 @@ function enterAltScreen(): void {
   }
 }
 function leaveAltScreen(): void {
+  // Always disable mouse reporting on the way out so a hard exit can never leave the
+  // terminal capturing the mouse (which would break native text selection at the shell).
+  if (useAltScreen) process.stdout.write("\x1b[?1000l\x1b[?1006l");
   if (useAltScreen && altActive) {
     altActive = false;
     process.stdout.write("\x1b[?1049l\x1b[?25h"); // restore primary buffer + cursor
@@ -63,7 +66,7 @@ async function main() {
   });
   manager.restoreState();
 
-  const store = createAppStore(config.layout);
+  const store = createAppStore(config.layout, config.mouseScroll);
 
   const monitor = new SystemMonitor(cwd);
   monitor.start(5000, (stats) => store.getState().setHostStats(stats));

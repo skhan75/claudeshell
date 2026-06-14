@@ -237,6 +237,7 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
   const layout = useApp((s) => s.layout);
   const paletteOpen = useApp((s) => s.paletteOpen);
   const tabLeader = useApp((s) => s.tabLeader);
+  const mouseScroll = useApp((s) => s.mouseScroll);
   const { stdout } = useStdout();
   const session = manager.active;
 
@@ -314,6 +315,18 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
     (input, key) => {
       // Stand down while the Ctrl+Space tab-cycle leader is armed (App owns ←/→ then).
       if (tabLeader) return;
+      // Mouse wheel / trackpad (only when capture is on): SGR mouse reports arrive as
+      // input like "[<64;x;y;M" (Ink strips the leading ESC). Button 64 = wheel up
+      // (scroll toward older), 65 = wheel down (toward latest); swallow other mouse events.
+      if (mouseScroll && input) {
+        const m = /\[<(\d+);\d+;\d+[Mm]/.exec(input);
+        if (m) {
+          const btn = Number(m[1]);
+          if (btn === 64) setOffset((o) => Math.min(maxOffset, o + 3));
+          else if (btn === 65) setOffset((o) => Math.max(0, o - 3));
+          return;
+        }
+      }
       // Page keys scroll the transcript from ANY focus — you can flick through the
       // backlog while still composing in the input bar (no mode switch needed).
       if (key.pageUp) {

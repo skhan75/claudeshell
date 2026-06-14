@@ -24,6 +24,8 @@ export interface Config {
   fleetPermissionMode: string;
   /** Cost-guard caps (USD). Empty object → no budget. */
   budget: BudgetCaps;
+  /** Capture the mouse for trackpad/wheel scroll by default (costs mouse text-selection). */
+  mouseScroll: boolean;
 }
 
 const PERMISSION_MODES = new Set(["default", "acceptEdits", "bypassPermissions", "plan"]);
@@ -74,6 +76,7 @@ interface RawConfig {
   theme?: { name?: string };
   fleet?: { size?: number; permissionMode?: string };
   budget?: BudgetCaps;
+  mouse?: { scroll?: boolean };
 }
 
 function sanitize(raw: Record<string, unknown>): RawConfig {
@@ -118,6 +121,10 @@ function sanitize(raw: Record<string, unknown>): RawConfig {
   if (budget && typeof budget === "object") {
     out.budget = sanitizeBudget(budget as BudgetCaps);
   }
+  const mouse = raw.mouse;
+  if (mouse && typeof mouse === "object" && typeof (mouse as { scroll?: unknown }).scroll === "boolean") {
+    out.mouse = { scroll: (mouse as { scroll: boolean }).scroll };
+  }
   return out;
 }
 
@@ -157,5 +164,6 @@ export function loadConfig(opts: { globalDir?: string; cwd?: string } = {}): Con
     fleetSize: sanitizeFleetSize(p.fleet?.size ?? g.fleet?.size),
     fleetPermissionMode: p.fleet?.permissionMode ?? g.fleet?.permissionMode ?? "default",
     budget: { ...sanitizeBudget(g.budget), ...sanitizeBudget(p.budget) },
+    mouseScroll: p.mouse?.scroll ?? g.mouse?.scroll ?? false,
   };
 }

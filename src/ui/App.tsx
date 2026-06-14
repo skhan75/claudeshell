@@ -68,6 +68,7 @@ export function App() {
   const focus = useApp((s) => s.focus);
   const paletteOpen = useApp((s) => s.paletteOpen);
   const overlay = useApp((s) => s.overlay);
+  const mouseScroll = useApp((s) => s.mouseScroll);
   const hostStats = useApp((s) => s.hostStats);
   const session = manager.active;
   const pending = session?.pendingPermission ?? null;
@@ -102,6 +103,18 @@ export function App() {
   useEffect(() => {
     if (pending && overlay) store.getState().setOverlay(null);
   }, [pending, overlay, store]);
+
+  // Mouse-scroll toggle: capture the mouse (SGR 1006) only while enabled so trackpad/wheel
+  // scroll the transcript. Disabled on toggle-off and unmount so native text-selection/copy
+  // returns. Written to the real process.stdout (a mode-set, out of band from Ink's frame)
+  // and guarded on isTTY so it no-ops in tests. (cli.tsx also disables on hard exit.)
+  useEffect(() => {
+    if (!process.stdout.isTTY) return;
+    process.stdout.write(mouseScroll ? "\x1b[?1000h\x1b[?1006h" : "\x1b[?1000l\x1b[?1006l");
+    return () => {
+      if (process.stdout.isTTY) process.stdout.write("\x1b[?1000l\x1b[?1006l");
+    };
+  }, [mouseScroll]);
 
   const termWidth = stdout?.columns ?? 80;
   const tooSmall = (stdout?.columns ?? 80) < 60 || (stdout?.rows ?? 24) < 14;
