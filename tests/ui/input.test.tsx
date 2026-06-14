@@ -74,24 +74,24 @@ describe("InputBar", () => {
     expect(lastFrame()).toContain("/model");
   });
 
-  it("typing / shows the real CLI commands from the live init and the picker is navigable", async () => {
-    // The SDK populates transcript.meta.slashCommands with the real CLI commands.
-    // Apply a live init, then typing "/" surfaces exactly those commands; the picker
-    // is navigable (arrow moves the highlight, Enter inserts and does NOT send).
+  it("merges the SDK's live plugin commands with the built-ins, navigable", async () => {
+    // The SDK reports custom/plugin commands (e.g. /superpowers:*); these are merged
+    // in alongside the built-ins. Filtering surfaces them; the picker is navigable
+    // (arrow moves the highlight, Enter inserts and does NOT send).
     const ctx = makeCtx();
-    // Use non-app-handled commands so Enter inserts (rather than running, like /model).
     ctx.manager.active!.transcript.apply({
-      type: "system", subtype: "init", slash_commands: ["/clear", "/cost"],
+      type: "system", subtype: "init",
+      slash_commands: ["/superpowers:brainstorming", "/superpowers:executing-plans"],
     });
     ctx.store.getState().bump();
     const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
     await tick();
-    stdin.write("/");
+    stdin.write("/superpowers"); // filter to the plugin commands
     await tick();
     const frame = lastFrame()!;
-    expect(frame).toContain("/clear");
-    expect(frame).toContain("/cost");
-    const second = ["/clear", "/cost"].sort(
+    expect(frame).toContain("/superpowers:brainstorming");
+    expect(frame).toContain("/superpowers:executing-plans");
+    const second = ["/superpowers:brainstorming", "/superpowers:executing-plans"].sort(
       (a, b) => frame.indexOf(a) - frame.indexOf(b)
     )[1];
     stdin.write("\x1b[B"); // Down → 2nd command
@@ -100,6 +100,19 @@ describe("InputBar", () => {
     await tick();
     expect(ctx.manager.active!.transcript.blocks).toHaveLength(0);
     expect(lastFrame()).toContain("▸ " + second);
+  });
+
+  it("built-ins remain available even after the SDK reports plugin commands", async () => {
+    const ctx = makeCtx();
+    ctx.manager.active!.transcript.apply({
+      type: "system", subtype: "init", slash_commands: ["/superpowers:brainstorming"],
+    });
+    ctx.store.getState().bump();
+    const { stdin, lastFrame } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("/compact"); // a built-in still surfaces alongside plugin commands
+    await tick();
+    expect(lastFrame()).toContain("/compact");
   });
 
   it("/model opens the model picker overlay instead of being sent as a prompt", async () => {

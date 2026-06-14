@@ -41,13 +41,22 @@ export const DEFAULT_SLASH_COMMANDS: string[] = [
 ];
 
 /**
- * The slash commands to offer: the SDK-reported live list when available (the source
- * of truth — includes custom + project commands), else the built-in fallback so the
- * picker is useful on a fresh tab before the first turn has initialized the session.
+ * The slash commands to offer: the built-in Claude commands first (the familiar
+ * /model, /compact, /clear, …), then the SDK's live list (custom + plugin/skill
+ * commands like /superpowers:brainstorming), deduped. Merging means the built-ins
+ * are always present even once a session's plugin commands load — the user sees both.
  */
 export function effectiveSlashCommands(reported: readonly string[]): string[] {
   const live = reported.map((c) => (c.startsWith("/") ? c : "/" + c));
-  return live.length > 0 ? live : DEFAULT_SLASH_COMMANDS;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of [...DEFAULT_SLASH_COMMANDS, ...live]) {
+    if (!seen.has(c)) {
+      seen.add(c);
+      out.push(c);
+    }
+  }
+  return out;
 }
 
 /**
