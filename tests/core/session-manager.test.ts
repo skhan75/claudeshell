@@ -28,6 +28,41 @@ function tmpState(): string {
 }
 
 describe("SessionManager", () => {
+  // A query that, for each prompt, replies with a one-line summary then a result.
+  const summarizeQuery: QueryFn = ({ prompt }) => {
+    async function* gen() {
+      for await (const _ of prompt) {
+        yield { type: "assistant", message: { content: [{ type: "text", text: "COMPACT SUMMARY: the gist" }] } };
+        yield { type: "result", subtype: "success", num_turns: 1 };
+      }
+    }
+    return gen();
+  };
+
+  it("requestCompact('new-tab') summarizes the active session and opens a fresh seeded tab", async () => {
+    const mgr = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: summarizeQuery });
+    mgr.create();
+    const first = mgr.active!;
+    first.transcript.addUser("did a bunch of work");
+    expect(mgr.tabs.length).toBe(1);
+    mgr.requestCompact("new-tab", "");
+    await vi.waitFor(() => expect(mgr.tabs.length).toBe(2));
+    expect(mgr.active!.id).not.toBe(first.id); // the new compacted tab is active
+    expect(mgr.tabs.some((t) => t.id === first.id)).toBe(true); // original preserved
+  });
+
+  it("requestCompact('summary') summarizes in place without opening a tab", async () => {
+    const mgr = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: summarizeQuery });
+    const s = mgr.create();
+    s.transcript.addUser("work");
+    mgr.requestCompact("summary", "");
+    await vi.waitFor(() =>
+      expect(s.transcript.blocks.some((b) => b.kind === "assistant" && b.text.includes("COMPACT SUMMARY"))).toBe(true),
+    );
+    await new Promise((r) => setTimeout(r, 5)); // let any (absent) reseed microtask run
+    expect(mgr.tabs.length).toBe(1);
+  });
+
   it("creates, activates, and closes sessions", () => {
     const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
     const a = m.create();

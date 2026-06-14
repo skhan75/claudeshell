@@ -88,6 +88,11 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
       manager.active?.reset();
       return true;
     }
+    if (c === "/compact" || c.startsWith("/compact ")) {
+      store.getState().setCompactFocus(c.slice("/compact".length).trim());
+      store.getState().setOverlay("compact");
+      return true;
+    }
     return false;
   };
 

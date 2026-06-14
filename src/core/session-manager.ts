@@ -6,6 +6,29 @@ import type { QueryFn } from "./types.js";
 /** A tab is either a Claude session or a terminal PTY tab. */
 export type Tab = Session | Terminal;
 
+/** How `/compact` presents its result. */
+export type CompactMode = "new-tab" | "replace" | "summary";
+
+/** Prompt that asks Claude to condense the conversation for continuation. */
+function summaryPrompt(focus: string): string {
+  return [
+    "Summarize our conversation so far into a compact briefing I can continue from.",
+    "Capture the goal, key decisions, files/code changed, the current state, and open questions.",
+    "Be concise but complete — this replaces the full history.",
+    focus ? `Focus especially on: ${focus}.` : "",
+  ].filter(Boolean).join(" ");
+}
+
+/** The text of the most recent non-empty assistant message (the generated summary). */
+function lastAssistantText(s: Session): string | undefined {
+  const blocks = s.transcript.blocks;
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const b = blocks[i];
+    if (b.kind === "assistant" && b.text.trim()) return b.text;
+  }
+  return undefined;
+}
+
 export interface ManagerOpts {
   cwd: string;
   statePath: string;
@@ -17,8 +40,15 @@ export class SessionManager {
   activeIndex = 0;
   private counter = 0;
   private listeners = new Set<() => void>();
+  private pendingCompact: { sessionId: string; mode: CompactMode; turnsBefore: number } | null = null;
 
   constructor(private opts: ManagerOpts) {}
+
+  /** Per-session change handler: drives any pending /compact, then notifies the UI. */
+  private onSessionChange(s: Session): void {
+    this.maybeFinishCompact(s);
+    this.notify();
+  }
 
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -52,7 +82,7 @@ export class SessionManager {
       queryFn: this.opts.queryFn,
       resumeSessionId: init?.resumeSessionId,
       title: init?.title,
-      onChange: () => this.notify(),
+      onChange: () => this.onSessionChange(session),
     });
     this.tabs.push(session);
     this.activeIndex = this.tabs.length - 1;
@@ -92,6 +122,48 @@ export class SessionManager {
    * both ends. The fast keyboard tab-cycle (Ctrl+→ / Ctrl+←) routes here. No-op
    * when there are fewer than two tabs.
    */
+  /**
+   * Start a /compact: ask Claude to summarize the active conversation, then (when that
+   * turn finishes) present the result by `mode` — open it in a new tab, replace this
+   * conversation's context in place, or just leave the summary inline. The SDK has no
+   * native compaction, so this is a faithful emulation: summarize → reseed a fresh
+   * (non-resumed) context with the summary, reclaiming the context window.
+   */
+  requestCompact(mode: CompactMode, focus = ""): void {
+    const s = this.active;
+    if (!s || s.status === "crashed") return;
+    this.pendingCompact = { sessionId: s.id, mode, turnsBefore: s.transcript.usage.turns };
+    s.send(summaryPrompt(focus));
+  }
+
+  /** When the summary turn for a pending /compact completes, apply the chosen mode. */
+  private maybeFinishCompact(s: Session): void {
+    const pc = this.pendingCompact;
+    if (!pc || pc.sessionId !== s.id) return;
+    if (s.status !== "idle" || s.transcript.usage.turns <= pc.turnsBefore) return;
+    this.pendingCompact = null;
+    const summary = lastAssistantText(s);
+    if (!summary) return;
+    const mode = pc.mode;
+    // Defer the reseed out of this notify cycle to avoid re-entrant tab mutation.
+    queueMicrotask(() => this.applyCompact(s, mode, summary));
+  }
+
+  private applyCompact(s: Session, mode: CompactMode, summary: string): void {
+    if (mode === "summary") return; // already in the transcript
+    const seed =
+      "Here is a compacted summary of our prior conversation (the context was condensed to save space):\n\n" +
+      summary +
+      "\n\nLet's continue from here.";
+    if (mode === "new-tab") {
+      const fresh = this.create();
+      fresh.send(seed);
+    } else {
+      s.reset();
+      s.send(seed);
+    }
+  }
+
   cycleActive(delta: number): void {
     const n = this.tabs.length;
     if (n < 2) return;
@@ -137,7 +209,7 @@ export class SessionManager {
           queryFn: this.opts.queryFn,
           resumeSessionId: saved.claudeSessionId,
           title: saved.title,
-          onChange: () => this.notify(),
+          onChange: () => this.onSessionChange(session),
         });
         this.tabs.push(session);
       }

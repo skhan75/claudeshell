@@ -75,7 +75,9 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
       ? () => store.getState().setOverlay(overlay)
       : cmd === "/clear"
         ? () => session?.reset()
-        : () => session?.send(cmd);
+        : cmd === "/compact"
+          ? () => { store.getState().setCompactFocus(""); store.getState().setOverlay("compact"); }
+          : () => session?.send(cmd);
     items.push({ label: `slash: ${cmd}`, run });
   }
 

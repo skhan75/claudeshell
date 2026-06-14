@@ -74,6 +74,19 @@ describe("InputBar", () => {
     expect(lastFrame()).toContain("/model");
   });
 
+  it("/compact <focus> opens the compact picker with the focus captured", async () => {
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("/compact the parser"); // a space means no picker; Enter submits
+    await tick();
+    stdin.write("\r"); // routes to the compact overlay, not sent
+    await tick();
+    expect(ctx.store.getState().overlay).toBe("compact");
+    expect(ctx.store.getState().compactFocus).toBe("the parser");
+    expect(ctx.manager.active!.transcript.blocks).toHaveLength(0);
+  });
+
   it("/clear resets the conversation instead of being sent as a prompt", async () => {
     const ctx = makeCtx();
     ctx.manager.active!.transcript.addUser("an old message");

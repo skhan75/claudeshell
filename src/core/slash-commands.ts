@@ -8,7 +8,7 @@
  *
  * Leading "/" included; kept alphabetical so the inline picker reads predictably.
  */
-export const DEFAULT_SLASH_COMMANDS: string[] = ["/clear", "/help", "/model"];
+export const DEFAULT_SLASH_COMMANDS: string[] = ["/clear", "/compact", "/help", "/model"];
 
 /**
  * The slash commands to offer: the built-in Claude commands first (the familiar

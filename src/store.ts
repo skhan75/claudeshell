@@ -3,7 +3,7 @@ import type { HostStats } from "./core/types.js";
 
 export type Layout = "sidebar" | "zen";
 export type Focus = "input" | "scroll" | "explorer";
-export type Overlay = "help" | "sessions" | "buffers" | "models" | null;
+export type Overlay = "help" | "sessions" | "buffers" | "models" | "compact" | null;
 /** Left IDE explorer pane: a project file tree, or hidden. */
 export type LeftPanel = "files" | "hidden";
 
@@ -14,6 +14,8 @@ export interface AppState {
   leftPanel: LeftPanel;
   paletteOpen: boolean;
   overlay: Overlay;
+  /** Optional focus passed to /compact (text after the command), read by CompactOverlay. */
+  compactFocus: string;
   hostStats: HostStats | null;
   bump(): void;
   setLayout(l: Layout): void;
@@ -23,6 +25,7 @@ export interface AppState {
   setLeftPanel(p: LeftPanel): void;
   setPaletteOpen(open: boolean): void;
   setOverlay(o: Overlay): void;
+  setCompactFocus(f: string): void;
   setHostStats(h: HostStats): void;
 }
 
@@ -36,6 +39,7 @@ export function createAppStore(initialLayout: Layout): StoreApi<AppState> {
     leftPanel: "hidden",
     paletteOpen: false,
     overlay: null,
+    compactFocus: "",
     hostStats: null,
     bump: () => set((s) => ({ version: s.version + 1 })),
     setLayout: (layout) => set({ layout }),
@@ -45,6 +49,7 @@ export function createAppStore(initialLayout: Layout): StoreApi<AppState> {
     setLeftPanel: (leftPanel) => set({ leftPanel }),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setOverlay: (overlay) => set({ overlay }),
+    setCompactFocus: (compactFocus) => set({ compactFocus }),
     setHostStats: (hostStats) => set({ hostStats }),
   }));
 }
