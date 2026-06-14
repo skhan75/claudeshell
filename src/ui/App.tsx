@@ -12,6 +12,7 @@ import { CommandPalette } from "./CommandPalette.js";
 import { HelpOverlay } from "./HelpOverlay.js";
 import { ModelPicker } from "./ModelPicker.js";
 import { CompactOverlay } from "./CompactOverlay.js";
+import { FleetOverlay } from "./FleetOverlay.js";
 import { SessionsOverlay } from "./SessionsOverlay.js";
 import { BuffersOverlay } from "./BuffersOverlay.js";
 import { TerminalPane } from "./TerminalPane.js";
@@ -143,6 +144,11 @@ export function App() {
       // priority over the configurable matchKey checks below).
       if (key.ctrl && input === "g") {
         store.getState().setOverlay("help");
+        return;
+      }
+      // Ctrl+F → the fleet dashboard (mission control for all agents).
+      if (key.ctrl && input === "f") {
+        store.getState().setOverlay("fleet");
         return;
       }
       if (key.ctrl && input === "r") {
@@ -308,6 +314,10 @@ export function App() {
           ) : overlay === "compact" ? (
             <Box flexDirection="column" flexGrow={1}>
               <CompactOverlay onClose={() => store.getState().setOverlay(null)} />
+            </Box>
+          ) : overlay === "fleet" ? (
+            <Box flexDirection="column" flexGrow={1}>
+              <FleetOverlay onClose={() => store.getState().setOverlay(null)} />
             </Box>
           ) : paletteOpen ? (
             <Box flexDirection="column" flexGrow={1}>

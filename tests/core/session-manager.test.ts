@@ -312,6 +312,65 @@ describe("SessionManager", () => {
     }
   });
 
+  // --- Fleet: spawnWorkers (Option C Phase 2) ---
+
+  it("spawnWorkers creates n worker tabs, sends each the task, and returns them", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    m.create(); // the caller's tab
+    const workers = m.spawnWorkers("do X", 3, {});
+    expect(workers).toHaveLength(3);
+    expect(workers.map((w) => w.title)).toEqual(["▶ worker 1/3", "▶ worker 2/3", "▶ worker 3/3"]);
+    for (const w of workers) {
+      expect(w.transcript.blocks.some((b) => b.kind === "user" && b.text === "do X")).toBe(true);
+    }
+    // 1 caller + 3 workers
+    expect(m.tabs.filter((t) => t.kind === "claude")).toHaveLength(4);
+  });
+
+  it("spawnWorkers honors label + group", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    m.create();
+    const workers = m.spawnWorkers("go", 2, { group: "swarm", label: "swarm" });
+    expect(workers.map((w) => w.title)).toEqual(["▶ swarm 1/2", "▶ swarm 2/2"]);
+    expect(workers.every((w) => w.group === "swarm")).toBe(true);
+  });
+
+  it("spawnWorkers clamps n<1 to a single worker", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    m.create();
+    expect(m.spawnWorkers("x", 0, {})).toHaveLength(1);
+    expect(m.spawnWorkers("x", -5, {})[0].title).toBe("▶ worker 1/1");
+  });
+
+  it("spawnWorkers restores the caller's active tab (does not yank focus to a worker)", () => {
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: noopQuery });
+    const main = m.create();
+    m.spawnWorkers("go", 3, {});
+    expect(m.activeIndex).toBe(0);
+    expect(m.active?.id).toBe(main.id);
+  });
+
+  it("spawnWorkers fires subscribers and workers pump in the background while another tab is active", async () => {
+    const q: QueryFn = ({ prompt }) => {
+      async function* gen() {
+        for await (const _ of prompt) {
+          yield { type: "result", subtype: "success", num_turns: 1 };
+        }
+      }
+      return gen();
+    };
+    const m = new SessionManager({ cwd: "/tmp", statePath: tmpState(), queryFn: q });
+    const main = m.create();
+    let ticks = 0;
+    m.subscribe(() => ticks++);
+    const workers = m.spawnWorkers("go", 3, {});
+    expect(ticks).toBeGreaterThan(0);
+    expect(m.active?.id).toBe(main.id); // caller stays active
+    await vi.waitFor(() => {
+      for (const w of workers) expect(w.status).toBe("idle"); // all reached idle in the background
+    });
+  });
+
   // --- Eager warmup: tabs connect their query before the first prompt ---
 
   it("create() eagerly warms the active session (query opens once, no prompt sent)", () => {

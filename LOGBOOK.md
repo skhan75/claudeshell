@@ -34,6 +34,19 @@ memory across sessions; **read it at the start of work and append to it as you g
   focus/notify storm, fleet index-mapping, budget enforcement gap (documented), pricing drift
   (projection-only), async-in-Ink for review (await tick), cwd/path mismatch for `e`.
 
+### Shipped — Option C Phase 2: the fleet cockpit
+- `core/fleet.ts` (pure, tested): `projectFleet`/`currentActivity`/`elapsedMs`/`fmtElapsed`/
+  `workerTitle`/`lastAssistantText` + `WORKER_GLYPH`/`FORK_GLYPH`/`FleetRow`. Lifted
+  `lastAssistantText` out of session-manager (compact reuses it).
+- `SessionManager.spawnWorkers(task, n, {group?,label?})` — the single fleet choke-point;
+  captures+restores callerIndex, one final notify (no focus-yank), clamps n≥1. `Session.group`
+  added (structural swarm tag).
+- `FleetOverlay` (Ctrl+F / `/fleet`): live dashboard of all agents (status/activity/elapsed/
+  ctx/cost/queued), 1s clock tick, `j/k` select · enter focus · `x` interrupt (stays open) ·
+  esc. Maps row→original tab index so actions are correct past interleaved terminals.
+- `/parallel <task>` spawns `config.fleetSize` workers + opens the dashboard (execSlash case).
+- 377 tests pass, typecheck clean.
+
 ### Shipped — Option C Phase 1: the editor satellite
 - `SessionManager.openInEditor(file, line?, spawnFn?)` opens `$EDITOR`
   (`VISUAL ?? EDITOR ?? "vi"`) as a dedicated terminal tab — `+LINE` when a line is given —

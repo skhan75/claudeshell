@@ -13,6 +13,9 @@ export interface SessionOpts {
   queryFn?: QueryFn;
   resumeSessionId?: string;
   title?: string;
+  /** Structural fleet/swarm tag (e.g. "swarm"). Set by spawnWorkers/fork; the fleet
+   *  dashboard + swarm compare filter on this, never on the title glyph. */
+  group?: string;
   onChange?: () => void;
 }
 
@@ -111,6 +114,8 @@ export class Session {
   readonly kind = "claude" as const;
   readonly id: string;
   readonly cwd: string;
+  /** Structural fleet/swarm tag, set at creation (undefined for normal sessions). */
+  readonly group?: string;
   title: string;
   status: SessionStatus = "idle";
   turnStartedAt: number | null = null;
@@ -140,6 +145,7 @@ export class Session {
   constructor(opts: SessionOpts) {
     this.id = opts.id;
     this.cwd = opts.cwd;
+    this.group = opts.group;
     this.title = opts.title ?? "new session";
     this.titled = opts.title !== undefined;
     this.queryFn = opts.queryFn ?? lazyQuery();

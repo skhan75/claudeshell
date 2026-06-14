@@ -219,6 +219,20 @@ describe("App overlays + onboarding", () => {
     expect(lastFrame()).toContain("BUFFERS · OPEN TABS");
   });
 
+  it("ctrl+f opens the fleet overlay and gates the global keys while open", async () => {
+    const ctx = makeCtx();
+    const { stdin, lastFrame } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write(String.fromCharCode(0x06)); // ctrl+f
+    await tick();
+    expect(ctx.store.getState().overlay).toBe("fleet");
+    expect(lastFrame()).toContain("FLEET");
+    // While an overlay is open the App global useInput is gated off: ctrl+g is a no-op.
+    stdin.write(String.fromCharCode(0x07)); // ctrl+g
+    await tick();
+    expect(ctx.store.getState().overlay).toBe("fleet");
+  });
+
   it("ctrl+→ / ctrl+← cycle to the next / previous tab (with wraparound)", async () => {
     const ctx = makeCtx();
     ctx.manager.create();

@@ -11,7 +11,7 @@ import { routeSlash, type SlashAction } from "../core/slash-commands.js";
  */
 export function execSlash(action: SlashAction, ctx: AppCtx): boolean {
   if (!action || action.kind === "send") return false;
-  const { manager, store } = ctx;
+  const { manager, config, store } = ctx;
   switch (action.kind) {
     case "overlay":
       store.getState().setOverlay(action.overlay);
@@ -23,8 +23,12 @@ export function execSlash(action: SlashAction, ctx: AppCtx): boolean {
       store.getState().setCompactFocus(action.focus);
       store.getState().setOverlay("compact");
       return true;
-    // parallel / swarm / fork are wired in their feature phases (2 + 5); until then
-    // they fall through to the session as a normal prompt.
+    case "parallel": {
+      const workers = manager.spawnWorkers(action.task, config.fleetSize, { label: "worker" });
+      if (workers.length) store.getState().setOverlay("fleet");
+      return true;
+    }
+    // swarm / fork are wired in Phase 5; until then they fall through to a normal prompt.
     default:
       return false;
   }

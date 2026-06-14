@@ -2,6 +2,7 @@ import path from "node:path";
 import { Session } from "./session.js";
 import { Terminal, type SpawnFn } from "./terminal.js";
 import { loadState, saveState, type SavedState } from "./persistence.js";
+import { workerTitle, lastAssistantText } from "./fleet.js";
 import type { QueryFn } from "./types.js";
 
 /** A tab is either a Claude session or a terminal PTY tab. */
@@ -18,16 +19,6 @@ function summaryPrompt(focus: string): string {
     "Be concise but complete — this replaces the full history.",
     focus ? `Focus especially on: ${focus}.` : "",
   ].filter(Boolean).join(" ");
-}
-
-/** The text of the most recent non-empty assistant message (the generated summary). */
-function lastAssistantText(s: Session): string | undefined {
-  const blocks = s.transcript.blocks;
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    const b = blocks[i];
-    if (b.kind === "assistant" && b.text.trim()) return b.text;
-  }
-  return undefined;
 }
 
 export interface ManagerOpts {
@@ -75,7 +66,7 @@ export class SessionManager {
     return this.tabs[this.activeIndex];
   }
 
-  create(init?: { resumeSessionId?: string; title?: string }): Session {
+  create(init?: { resumeSessionId?: string; title?: string; group?: string }): Session {
     const id = `s${++this.counter}`;
     const session = new Session({
       id,
@@ -83,6 +74,7 @@ export class SessionManager {
       queryFn: this.opts.queryFn,
       resumeSessionId: init?.resumeSessionId,
       title: init?.title,
+      group: init?.group,
       onChange: () => this.onSessionChange(session),
     });
     this.tabs.push(session);
@@ -91,6 +83,30 @@ export class SessionManager {
     // Warm the new tab eagerly so init data (model/slash/MCP) is ready.
     this.active?.ensureStarted();
     return session;
+  }
+
+  /**
+   * Spawn a fleet of `n` worker agents on the same `task` — the single choke-point for
+   * all multi-agent creation (`/parallel`, and `/swarm` via {@link swarm}). Each worker
+   * is its own background Session that pumps independently. The caller's active tab is
+   * preserved (the UI opens the Fleet dashboard instead of yanking focus into a worker).
+   * Returns the created sessions.
+   */
+  spawnWorkers(task: string, n: number, opts?: { group?: string; label?: string }): Session[] {
+    const count = Math.max(1, Math.floor(n) || 1);
+    const callerIndex = this.activeIndex;
+    const label = opts?.label ?? "worker";
+    const workers: Session[] = [];
+    // First pass: create all tabs (create() warms each — workers SHOULD start).
+    for (let i = 1; i <= count; i++) {
+      workers.push(this.create({ title: workerTitle(i, count, label), group: opts?.group }));
+    }
+    // Second pass: hand each worker its task.
+    for (const w of workers) w.send(task);
+    // Restore focus to where the user was; a single notify settles the UI.
+    this.activeIndex = Math.min(callerIndex, this.tabs.length - 1);
+    this.notify();
+    return workers;
   }
 
   createTerminal(init?: { spawnFn?: SpawnFn; cols?: number; rows?: number; cwd?: string }): Terminal {
