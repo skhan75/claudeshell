@@ -72,7 +72,7 @@ describe("CommandPalette", () => {
     ctx.store.getState().setPaletteOpen(true);
     const { stdin } = renderWithCtx(<CommandPalette />, ctx);
     await tick();
-    stdin.write("toggle");
+    stdin.write("toggle layout"); // unambiguous: only the layout-toggle row matches
     await tick();
     for (let i = 0; i < 5; i++) {
       stdin.write("[B"); // down arrow

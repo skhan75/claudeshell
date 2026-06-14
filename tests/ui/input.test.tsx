@@ -417,6 +417,40 @@ describe("InputBar", () => {
     expect(ctx.manager.active!.transcript.blocks[0]).toMatchObject({ kind: "user", text: "aXbc" });
   });
 
+  it("Ctrl+A / Ctrl+E jump to line start / end", async () => {
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("hello");
+    await tick();
+    stdin.write("\x01"); // Ctrl+A → home (caret 0)
+    await tick();
+    stdin.write("X"); // → "Xhello"
+    await tick();
+    stdin.write("\x05"); // Ctrl+E → line end
+    await tick();
+    stdin.write("Z"); // → "XhelloZ"
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(ctx.manager.active!.transcript.blocks[0]).toMatchObject({ kind: "user", text: "XhelloZ" });
+  });
+
+  it("Option+← (ESC b) moves word-wise backward", async () => {
+    const ctx = makeCtx();
+    const { stdin } = renderWithCtx(<InputBar />, ctx);
+    await tick();
+    stdin.write("foo bar baz");
+    await tick();
+    stdin.write("\x1bb"); // Option+Left → caret to start of "baz" (index 8)
+    await tick();
+    stdin.write("X"); // → "foo bar Xbaz"
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(ctx.manager.active!.transcript.blocks[0]).toMatchObject({ kind: "user", text: "foo bar Xbaz" });
+  });
+
   it("Ctrl+A jumps to line start, then typing prepends", async () => {
     const ctx = makeCtx();
     const { stdin } = renderWithCtx(<InputBar />, ctx);

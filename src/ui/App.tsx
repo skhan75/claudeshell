@@ -153,10 +153,10 @@ export function App() {
       }
       // Ctrl+→ / Ctrl+← cycle to the next / previous tab (fast keyboard nav that
       // doesn't need the Alt modifier, which many terminals strip).
-      // Ctrl+E drives the left explorer (VS Code's "explorer" key; ^B/^\ are taken):
-      // closed → open + focus it for keyboard nav; open-but-unfocused → focus it;
-      // focused → close. Esc/i inside the tree hands focus back to the input.
-      if (key.ctrl && input === "e") {
+      // Ctrl+E drives the left explorer — BUT in the composer (input focus) Ctrl+E is
+      // line-end (readline), so the explorer toggle yields there; reach it from scroll
+      // focus (Esc then Ctrl+E) or the command palette ("toggle explorer").
+      if (key.ctrl && input === "e" && focus !== "input") {
         const st = store.getState();
         if (st.leftPanel === "hidden") {
           st.setLeftPanel("files");

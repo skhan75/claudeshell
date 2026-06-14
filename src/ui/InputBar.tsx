@@ -200,10 +200,15 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
         if (picker) insertSelected();
         return;
       }
-      // --- caret motion (no text change) — char-wise, or word-wise with Option/Alt ---
+      // --- caret motion (no text change) ---
+      // Option/Alt + ←/→ moves word-wise. macOS terminals send Option+←/→ as ESC b / ESC f
+      // (Ink → meta+b/f); some send meta+arrow — handle both.
+      if (key.meta && input === "b") { applyEdit(edit.moveWordLeft); return; }
+      if (key.meta && input === "f") { applyEdit(edit.moveWordRight); return; }
       if (key.leftArrow) { applyEdit(key.meta ? edit.moveWordLeft : edit.moveLeft); return; }
       if (key.rightArrow) { applyEdit(key.meta ? edit.moveWordRight : edit.moveRight); return; }
-      if (key.ctrl && input === "a") { applyEdit(edit.moveHome); return; } // line start
+      if (key.ctrl && input === "a") { applyEdit(edit.moveHome); return; } // line start (Ctrl+A)
+      if (key.ctrl && input === "e") { applyEdit(edit.moveEnd); return; } // line end (Ctrl+E)
       // --- fast deletes (editor-like) ---
       if (key.meta && (key.backspace || key.delete)) { editText(edit.deleteWordLeft); return; } // Option+Delete
       if (key.ctrl && input === "w") { editText(edit.deleteWordLeft); return; } // Ctrl+W: word back

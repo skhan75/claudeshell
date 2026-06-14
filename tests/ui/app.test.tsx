@@ -111,15 +111,16 @@ describe("App shell", () => {
     expect(ctx.store.getState().focus).toBe("scroll");
   });
 
-  it("ctrl+e toggles the file explorer (hidden by default)", async () => {
+  it("ctrl+e toggles the file explorer from non-input focus (it's line-end in the composer)", async () => {
     const ctx = makeCtx();
+    ctx.store.getState().setFocus("scroll"); // in the composer Ctrl+E = line-end; explorer toggles elsewhere
     expect(ctx.store.getState().leftPanel).toBe("hidden");
     const { stdin } = renderWithCtx(<App />, ctx);
     await tick();
-    stdin.write("\x05"); // Ctrl+E
+    stdin.write("\x05"); // Ctrl+E → open explorer
     await tick();
     expect(ctx.store.getState().leftPanel).toBe("files");
-    stdin.write("\x05"); // Ctrl+E again → back to hidden
+    stdin.write("\x05"); // Ctrl+E again (now in explorer focus) → close
     await tick();
     expect(ctx.store.getState().leftPanel).toBe("hidden");
   });

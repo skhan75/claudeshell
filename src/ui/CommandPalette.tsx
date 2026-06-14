@@ -44,6 +44,14 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
   items.push({ label: "action: close session", run: () => session && manager.close(session.id) });
   items.push({ label: "action: toggle layout", run: () => store.getState().toggleLayout() });
   items.push({
+    label: "action: toggle explorer",
+    run: () => {
+      const st = store.getState();
+      if (st.leftPanel === "hidden") { st.setLeftPanel("files"); st.setFocus("explorer"); }
+      else { st.setLeftPanel("hidden"); st.setFocus("input"); }
+    },
+  });
+  items.push({
     label: `action: mouse scroll ${store.getState().mouseScroll ? "OFF" : "ON"} (hold Option to copy when on)`,
     run: () => store.getState().toggleMouseScroll(),
   });
