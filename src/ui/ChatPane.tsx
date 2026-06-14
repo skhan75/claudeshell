@@ -183,6 +183,7 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
   const focus = useApp((s) => s.focus);
   const layout = useApp((s) => s.layout);
   const paletteOpen = useApp((s) => s.paletteOpen);
+  const tabLeader = useApp((s) => s.tabLeader);
   const { stdout } = useStdout();
   const session = manager.active;
 
@@ -215,8 +216,14 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
   const blocks = session?.transcript.blocks ?? [];
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
-    // One blank line between turns for clean separation (CLI-style).
-    if (i > 0 && (b.kind === "user" || b.kind === "assistant" || b.kind === "thinking")) {
+    // Segregate exchanges: a faint full-width rule above each new user prompt clearly
+    // brackets "you asked X → Claude answered"; assistant/thinking just get a blank line
+    // so each answer stays clean and uncluttered.
+    if (i > 0 && b.kind === "user") {
+      lines.push({ spans: [] });
+      lines.push({ spans: [{ text: "─".repeat(contentWidth), color: theme.dim, dim: true }] });
+      lines.push({ spans: [] });
+    } else if (i > 0 && (b.kind === "assistant" || b.kind === "thinking")) {
       lines.push({ spans: [] });
     }
     for (const l of cachedBlockLines(b, contentWidth)) lines.push(l);
@@ -252,6 +259,8 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
 
   useInput(
     (input, key) => {
+      // Stand down while the Ctrl+Space tab-cycle leader is armed (App owns ←/→ then).
+      if (tabLeader) return;
       // Page keys scroll the transcript from ANY focus — you can flick through the
       // backlog while still composing in the input bar (no mode switch needed).
       if (key.pageUp) {

@@ -249,6 +249,25 @@ describe("App overlays + onboarding", () => {
     expect(ctx.store.getState().overlay).toBeNull(); // overlay auto-closed → dialog can render
   });
 
+  it("Ctrl+Space leader: the next →/← cycles tabs", async () => {
+    const ctx = makeCtx();
+    ctx.manager.create();
+    ctx.manager.create(); // 3 tabs; index 2 active
+    ctx.manager.activate(0);
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write("\x00"); // Ctrl+Space (NUL) → arm the leader
+    await tick();
+    stdin.write("\x1b[C"); // right → next tab
+    await tick();
+    expect(ctx.manager.activeIndex).toBe(1);
+    stdin.write("\x00"); // arm again
+    await tick();
+    stdin.write("\x1b[D"); // left → previous tab
+    await tick();
+    expect(ctx.manager.activeIndex).toBe(0);
+  });
+
   it("ctrl+→ / ctrl+← cycle to the next / previous tab (with wraparound)", async () => {
     const ctx = makeCtx();
     ctx.manager.create();

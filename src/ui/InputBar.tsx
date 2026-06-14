@@ -15,6 +15,7 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
   useApp((s) => s.version);
   const focus = useApp((s) => s.focus);
   const paletteOpen = useApp((s) => s.paletteOpen);
+  const tabLeader = useApp((s) => s.tabLeader);
   const { stdout } = useStdout();
   const [text, setText] = useState("");
   const [cursor, setCursor] = useState(0); // caret index into `text`
@@ -124,6 +125,9 @@ export function InputBar({ width: widthProp }: { width?: number } = {}) {
 
   useInput(
     (input, key) => {
+      // Stand down while the Ctrl+Space tab-cycle leader is armed so ←/→ cycles tabs
+      // (App handles it) instead of moving the caret.
+      if (tabLeader) return;
       // While a picker is open it owns navigation + Enter/Tab/Esc.
       if (picker) {
         if (key.upArrow || (key.ctrl && input === "p")) {

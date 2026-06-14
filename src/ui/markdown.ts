@@ -211,7 +211,7 @@ function renderCode(tk: Tok, width: number): Line[] {
   const diffMode = lang === "diff" || lang === "patch";
   const lines: Line[] = [];
   // Optional dim language label; a left gutter marks the block (no bg fill).
-  if (lang) lines.push({ spans: [{ text: "▌ ", color: theme.dim }, { text: lang, color: theme.dim, dim: true }] });
+  if (lang) lines.push({ spans: [{ text: "▌ ", color: theme.accent }, { text: lang, color: theme.dim, dim: true }] });
   const bodyW = Math.max(1, width - 2); // gutter occupies 2 cols
   const raw = String(tk.text ?? "").replace(/\n$/, "");
   for (const srcLine of raw.split("\n")) {
@@ -226,7 +226,7 @@ function renderCode(tk: Tok, width: number): Line[] {
     const slices = srcLine.length === 0 ? [""] : [];
     for (let i = 0; i < srcLine.length; i += bodyW) slices.push(srcLine.slice(i, i + bodyW));
     for (const slice of slices) {
-      lines.push({ spans: [{ text: "▌ ", color: theme.dim }, { text: slice, color: codeColor }] });
+      lines.push({ spans: [{ text: "▌ ", color: theme.accent }, { text: slice, color: codeColor }] });
     }
   }
   return lines;

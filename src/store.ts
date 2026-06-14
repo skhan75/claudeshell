@@ -18,6 +18,8 @@ export interface AppState {
   overlay: Overlay;
   /** Optional focus passed to /compact (text after the command), read by CompactOverlay. */
   compactFocus: string;
+  /** Ctrl+Space tab-cycle leader is armed; the next ←/→ cycles tabs (one-shot). */
+  tabLeader: boolean;
   hostStats: HostStats | null;
   bump(): void;
   setLayout(l: Layout): void;
@@ -28,6 +30,7 @@ export interface AppState {
   setPaletteOpen(open: boolean): void;
   setOverlay(o: Overlay): void;
   setCompactFocus(f: string): void;
+  setTabLeader(v: boolean): void;
   setHostStats(h: HostStats): void;
 }
 
@@ -42,6 +45,7 @@ export function createAppStore(initialLayout: Layout): StoreApi<AppState> {
     paletteOpen: false,
     overlay: null,
     compactFocus: "",
+    tabLeader: false,
     hostStats: null,
     bump: () => set((s) => ({ version: s.version + 1 })),
     setLayout: (layout) => set({ layout }),
@@ -52,6 +56,7 @@ export function createAppStore(initialLayout: Layout): StoreApi<AppState> {
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setOverlay: (overlay) => set({ overlay }),
     setCompactFocus: (compactFocus) => set({ compactFocus }),
+    setTabLeader: (tabLeader) => set({ tabLeader }),
     setHostStats: (hostStats) => set({ hostStats }),
   }));
 }

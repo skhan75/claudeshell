@@ -77,6 +77,10 @@ export function App() {
 
   useEffect(() => manager.subscribe(() => store.getState().bump()), [manager, store]);
 
+  // Ctrl+Space leader: a terminal can't deliver Ctrl+Space+arrow as one chord, so we
+  // treat Ctrl+Space (NUL) as a one-shot prefix — the next ←/→ cycles tabs. Lives in the
+  // store so InputBar/ChatPane can stand down while it's armed (no cursor-move/scroll clash).
+  const tabLeader = useApp((s) => s.tabLeader);
   const [clock, setClock] = useState(clockNow);
   useEffect(() => {
     const id = setInterval(() => setClock(clockNow()), 1000);
@@ -104,6 +108,17 @@ export function App() {
 
   useInput(
     (input, key) => {
+      // Ctrl+Space tab-cycle leader: armed → the next ←/→ cycles tabs (one-shot); any
+      // other key cancels it and falls through to normal handling.
+      if (tabLeader) {
+        if (key.leftArrow) { store.getState().setTabLeader(false); manager.cycleActive(-1); return; }
+        if (key.rightArrow) { store.getState().setTabLeader(false); manager.cycleActive(1); return; }
+        store.getState().setTabLeader(false);
+      }
+      if (key.ctrl && (input === "`" || input === " ")) { // Ctrl+Space = NUL, Ink reports it as Ctrl+backtick
+        store.getState().setTabLeader(true);
+        return;
+      }
       if (session?.status === "crashed" && input === "r") {
         session.resume();
         return;
