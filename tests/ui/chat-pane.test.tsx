@@ -263,9 +263,18 @@ describe("toolLines — rich tool rendering", () => {
     expect(lineText(lines[0])).toContain("⚙ Read foo.ts");
   });
 
-  it("caps long output with a '+N more lines' footer", () => {
+  it("caps long output with a '+N more lines' footer (collapsed)", () => {
     const big = Array.from({ length: 40 }, (_, i) => `line ${i}`).join("\n");
     expect(text(tool({ name: "Write", input: { file_path: "x", content: big } }))).toMatch(/\+\d+ more lines/);
+  });
+
+  it("expandTools shows the full body and a collapse hint instead of '+N more'", () => {
+    const big = Array.from({ length: 40 }, (_, i) => `line ${i}`).join("\n");
+    const b = tool({ name: "Write", input: { file_path: "x", content: big } });
+    const expanded = toolLines(b, 60, true).map(lineText).join("\n");
+    expect(expanded).toContain("line 39"); // the last (previously hidden) line is shown
+    expect(expanded).not.toMatch(/\+\d+ more lines/);
+    expect(expanded).toContain("o to collapse");
   });
 
   it("marks an errored tool with ✖", () => {
@@ -336,6 +345,25 @@ describe("ChatPane — scrolling", () => {
       await tick();
     }
     expect(lastFrame()).toContain("line-29");
+  });
+
+  it("o (in scroll focus) expands/collapses truncated tool output", async () => {
+    const ctx = makeCtx();
+    const s = ctx.manager.active!;
+    const big = Array.from({ length: 40 }, (_, i) => `out-${i}`).join("\n");
+    s.transcript.blocks.push({ kind: "tool", name: "Bash", detail: "", status: "done", ok: true, input: { command: "ls" }, result: big });
+    ctx.store.getState().setFocus("scroll");
+    ctx.store.getState().bump();
+    const { lastFrame, stdin } = renderWithCtx(<ChatPane height={50} />, ctx);
+    await tick();
+    expect(lastFrame()).toMatch(/\+\d+ more lines/); // collapsed
+    expect(lastFrame()).not.toContain("out-39");
+    stdin.write("o"); // expand
+    await tick();
+    expect(lastFrame()).toContain("out-39");
+    stdin.write("o"); // collapse again
+    await tick();
+    expect(lastFrame()).not.toContain("out-39");
   });
 
   it("draws a right-edge scrollbar only when the transcript overflows", async () => {

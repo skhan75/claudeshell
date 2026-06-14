@@ -108,6 +108,7 @@ function clipSpans(spans: Span[], w: number): Span[] {
 export function toolLines(
   b: Extract<TranscriptBlock, { kind: "tool" }>,
   width: number,
+  expandTools = false,
 ): Line[] {
   const running = b.status === "running";
   const errored = b.ok === false;
@@ -160,10 +161,12 @@ export function toolLines(
     }
   }
 
-  const shown = body.slice(0, MAX_TOOL_BODY);
+  // Cap the body unless expanded; when truncatable, show an o-to-expand/collapse hint.
+  const shown = expandTools ? body : body.slice(0, MAX_TOOL_BODY);
   for (const spans of shown) lines.push({ spans: [{ text: "  " }, ...clipSpans(spans, bodyW)] });
-  if (body.length > shown.length) {
-    lines.push({ spans: [{ text: `  … +${body.length - shown.length} more lines`, color: theme.dim }] });
+  if (body.length > MAX_TOOL_BODY) {
+    const hint = expandTools ? "  ⌃ o to collapse" : `  … +${body.length - MAX_TOOL_BODY} more lines · o to expand`;
+    lines.push({ spans: [{ text: hint, color: theme.dim }] });
   }
   return lines;
 }
@@ -173,7 +176,7 @@ export function toolLines(
  * the Claude CLI: user prompts get a simple `❯` marker, assistant answers are
  * rendered markdown, no role banners or rules.
  */
-export function blockLines(b: TranscriptBlock, width: number): Line[] {
+export function blockLines(b: TranscriptBlock, width: number, expandTools = false): Line[] {
   switch (b.kind) {
     case "user": {
       // Echo the prompt with a "❯ " marker; wrapped continuations hang-indent by 2.
@@ -195,7 +198,7 @@ export function blockLines(b: TranscriptBlock, width: number): Line[] {
       return lines;
     }
     case "tool":
-      return toolLines(b, width);
+      return toolLines(b, width, expandTools);
     case "thinking": {
       const wrapped = wrapSpans([{ text: b.text, dim: true, italic: true }], Math.max(1, width - 2));
       const lines: Line[] = wrapped.map((l, i) => ({
@@ -221,8 +224,9 @@ export function blockLines(b: TranscriptBlock, width: number): Line[] {
  */
 const assistantCache = new WeakMap<TranscriptBlock, { text: string; width: number; streaming: boolean; lines: Line[] }>();
 
-function cachedBlockLines(b: TranscriptBlock, width: number): Line[] {
-  if (b.kind !== "assistant") return blockLines(b, width);
+function cachedBlockLines(b: TranscriptBlock, width: number, expandTools = false): Line[] {
+  // Only assistant markdown is cached; tools (which honor expandTools) re-render each pass.
+  if (b.kind !== "assistant") return blockLines(b, width, expandTools);
   const hit = assistantCache.get(b);
   if (hit && hit.text === b.text && hit.width === width && hit.streaming === b.streaming) return hit.lines;
   const lines = blockLines(b, width);
@@ -253,11 +257,13 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
   // matchIdx is the index into the matches[] array (not the line index) so that
   // n/N cycle through ALL matches instead of re-deriving from viewport top.
   const [matchIdx, setMatchIdx] = useState(0);
+  const [expandTools, setExpandTools] = useState(false); // expand all truncated tool output
 
   useEffect(() => {
     setOffset(0);
     setSearch({ active: false, query: "" });
     setMatchIdx(0);
+    setExpandTools(false);
   }, [session?.id]);
 
   // PERF(v1.1): rebuilt on every render; during streaming this re-renders the whole
@@ -280,7 +286,7 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
     } else if (i > 0 && (b.kind === "assistant" || b.kind === "thinking")) {
       lines.push({ spans: [] });
     }
-    for (const l of cachedBlockLines(b, contentWidth)) lines.push(l);
+    for (const l of cachedBlockLines(b, contentWidth, expandTools)) lines.push(l);
   }
   const maxOffset = Math.max(0, lines.length - height);
   const effOffset = Math.min(offset, maxOffset); // clamp a stale offset after a resize
@@ -360,6 +366,7 @@ export function ChatPane({ height: heightProp, width: widthProp }: { height?: nu
       else if (input === "/") setSearch({ active: true, query: "" });
       else if (input === "n") jump(1);
       else if (input === "N") jump(-1);
+      else if (input === "o") setExpandTools((v) => !v); // expand/collapse truncated tool output
     },
     { isActive: !paletteOpen && !manager.active?.pendingPermission }
   );

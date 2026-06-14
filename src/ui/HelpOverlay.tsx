@@ -205,6 +205,13 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
       desc: "Scroll a half page at a time through the transcript.",
     },
     {
+      key: "expand-tools",
+      group: "Chat / scroll",
+      binding: "o",
+      label: "Expand / collapse tool output",
+      desc: "In scroll mode (Esc), press o to expand truncated tool output (the '+N more lines' you see under a long diff/command) and o again to collapse it.",
+    },
+    {
       key: "search",
       group: "Chat / scroll",
       binding: "/",
