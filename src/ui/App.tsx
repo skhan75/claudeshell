@@ -177,6 +177,17 @@ export function App() {
         manager.cycleActive(-1);
         return;
       }
+      // Option/Alt + ←/→ cycles tabs too — but ONLY outside the composer, where Option+←/→
+      // is word-move. macOS sends Option+←/→ as ESC b / ESC f (Ink → meta+b/f); accept
+      // meta+arrow as well. (Gated on focus so it never fights the composer's word-move.)
+      if (focus !== "input" && key.meta && (input === "b" || key.leftArrow)) {
+        manager.cycleActive(-1);
+        return;
+      }
+      if (focus !== "input" && key.meta && (input === "f" || key.rightArrow)) {
+        manager.cycleActive(1);
+        return;
+      }
       // Discoverability/onboarding overlays + explicit quit (Ctrl combos take
       // priority over the configurable matchKey checks below).
       if (key.ctrl && input === "g") {

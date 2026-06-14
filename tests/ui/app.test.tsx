@@ -273,6 +273,22 @@ describe("App overlays + onboarding", () => {
     expect(ctx.store.getState().overlay).toBeNull(); // overlay auto-closed → dialog can render
   });
 
+  it("Option+←/→ cycles tabs from non-input focus (it's word-move in the composer)", async () => {
+    const ctx = makeCtx();
+    ctx.manager.create();
+    ctx.manager.create(); // 3 tabs; index 2 active
+    ctx.manager.activate(0);
+    ctx.store.getState().setFocus("scroll"); // not the composer
+    const { stdin } = renderWithCtx(<App />, ctx);
+    await tick();
+    stdin.write("\x1bf"); // Option+Right (ESC f) → next tab
+    await tick();
+    expect(ctx.manager.activeIndex).toBe(1);
+    stdin.write("\x1bb"); // Option+Left (ESC b) → previous tab
+    await tick();
+    expect(ctx.manager.activeIndex).toBe(0);
+  });
+
   it("Ctrl+Space leader: the next →/← cycles tabs", async () => {
     const ctx = makeCtx();
     ctx.manager.create();
