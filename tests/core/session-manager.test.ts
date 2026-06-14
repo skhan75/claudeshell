@@ -243,6 +243,75 @@ describe("SessionManager", () => {
     expect(m.tabs.some((t) => t.id === term.id)).toBe(true);
   });
 
+  // --- Editor satellite: open files in $EDITOR (Option C) ---
+
+  it("openInEditor opens $EDITOR at a line as an auto-closing terminal tab", () => {
+    const prevEditor = process.env.EDITOR;
+    const prevVisual = process.env.VISUAL;
+    delete process.env.VISUAL;
+    process.env.EDITOR = "nvim";
+    try {
+      const m = new SessionManager({ cwd: "/proj", statePath: tmpState(), queryFn: noopQuery });
+      const claude = m.create();
+      let exitCb: ((e: { exitCode: number }) => void) | undefined;
+      let captured: { shell: string; args: string[]; cwd: string } | undefined;
+      const spawnFn: SpawnFn = (opts) => {
+        captured = { shell: opts.shell, args: opts.args, cwd: opts.cwd };
+        return {
+          onData() {},
+          onExit(cb) { exitCb = cb; },
+          write() {},
+          resize() {},
+          kill() {},
+        };
+      };
+      const term = m.openInEditor("src/core/session.ts", 42, spawnFn);
+      // It became the active terminal tab.
+      expect(m.tabs).toHaveLength(2);
+      expect(m.activeTab?.id).toBe(term.id);
+      expect(term.kind).toBe("terminal");
+      // Spawned the editor at the line, in the project cwd.
+      expect(captured?.shell).toBe("nvim");
+      expect(captured?.args).toEqual(["+42", "src/core/session.ts"]);
+      expect(captured?.cwd).toBe("/proj");
+      // Title is the editor marker + basename.
+      expect(term.title).toBe("✎ session.ts");
+      // Quitting the editor auto-closes the tab and returns to the Claude tab.
+      exitCb?.({ exitCode: 0 });
+      expect(m.tabs).toHaveLength(1);
+      expect(m.activeTab?.id).toBe(claude.id);
+    } finally {
+      if (prevEditor === undefined) delete process.env.EDITOR;
+      else process.env.EDITOR = prevEditor;
+      if (prevVisual !== undefined) process.env.VISUAL = prevVisual;
+    }
+  });
+
+  it("openInEditor without a line opens the file directly and prefers $VISUAL", () => {
+    const prevEditor = process.env.EDITOR;
+    const prevVisual = process.env.VISUAL;
+    process.env.EDITOR = "vi";
+    process.env.VISUAL = "code -w";
+    try {
+      const m = new SessionManager({ cwd: "/proj", statePath: tmpState(), queryFn: noopQuery });
+      m.create();
+      let captured: { shell: string; args: string[] } | undefined;
+      const spawnFn: SpawnFn = (opts) => {
+        captured = { shell: opts.shell, args: opts.args };
+        return { onData() {}, onExit() {}, write() {}, resize() {}, kill() {} };
+      };
+      const term = m.openInEditor("README.md", undefined, spawnFn);
+      expect(captured?.shell).toBe("code -w");
+      expect(captured?.args).toEqual(["README.md"]);
+      expect(term.title).toBe("✎ README.md");
+    } finally {
+      if (prevEditor === undefined) delete process.env.EDITOR;
+      else process.env.EDITOR = prevEditor;
+      if (prevVisual === undefined) delete process.env.VISUAL;
+      else process.env.VISUAL = prevVisual;
+    }
+  });
+
   // --- Eager warmup: tabs connect their query before the first prompt ---
 
   it("create() eagerly warms the active session (query opens once, no prompt sent)", () => {

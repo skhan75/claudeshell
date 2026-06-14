@@ -22,6 +22,7 @@ export type SpawnFn = (opts: {
   cols: number;
   rows: number;
   shell: string;
+  args: string[];
   env: NodeJS.ProcessEnv;
 }) => PtyLike;
 
@@ -30,10 +31,10 @@ export type SpawnFn = (opts: {
 // throws on platforms where the native addon can't load.
 // ---------------------------------------------------------------------------
 
-const defaultSpawn: SpawnFn = ({ cwd, cols, rows, shell, env }) => {
+const defaultSpawn: SpawnFn = ({ cwd, cols, rows, shell, args, env }) => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { spawn } = require("node-pty") as typeof import("node-pty");
-  return spawn(shell, [], {
+  return spawn(shell, args, {
     name: "xterm-256color",
     cols,
     rows,
@@ -50,6 +51,10 @@ export interface TerminalOpts {
   id: string;
   cwd: string;
   shell?: string;
+  /** Args for `shell` — e.g. ["+18", "file.ts"] to run an editor at a line. Default []. */
+  args?: string[];
+  /** Override the derived title (e.g. "✎ file.ts" for an editor tab). */
+  title?: string;
   cols?: number;
   rows?: number;
   env?: NodeJS.ProcessEnv;
@@ -76,6 +81,8 @@ export class Terminal {
       id,
       cwd,
       shell = process.env.SHELL ?? "/bin/bash",
+      args = [],
+      title,
       cols = 80,
       rows = 24,
       env = process.env,
@@ -89,15 +96,14 @@ export class Terminal {
     this._cols = cols;
     this._rows = rows;
 
-    // Derive title from the shell basename, falling back to "terminal".
-    const base = path.basename(shell);
-    this.title = base || "terminal";
+    // Title: explicit override (editor tabs), else the shell basename.
+    this.title = title ?? path.basename(shell) ?? "terminal";
 
     // Create the headless xterm terminal (screen buffer).
     this.xterm = new XTerm({ cols, rows, allowProposedApi: true });
 
     // Spawn the PTY process.
-    this.pty = spawnFn({ cwd, cols, rows, shell, env });
+    this.pty = spawnFn({ cwd, cols, rows, shell, args, env });
 
     // Wire PTY data → xterm screen buffer.
     // Use the write callback so onChange fires only after the buffer is flushed.

@@ -1,3 +1,4 @@
+import path from "node:path";
 import { Session } from "./session.js";
 import { Terminal, type SpawnFn } from "./terminal.js";
 import { loadState, saveState, type SavedState } from "./persistence.js";
@@ -106,6 +107,38 @@ export class SessionManager {
     this.activeIndex = this.tabs.length - 1;
     this.notify();
     return terminal;
+  }
+
+  /**
+   * Option C "editor satellite": open `file` in the user's own `$EDITOR`
+   * (`VISUAL ?? EDITOR ?? "vi"`) as a dedicated terminal tab, optionally jumping to
+   * `line`. claudeshell never rebuilds the editor — it hands the file to the editor
+   * the user already lives in, then disposes the tab automatically when they quit it,
+   * returning focus to the tab they came from.
+   */
+  openInEditor(file: string, line?: number, spawnFn?: SpawnFn): Terminal {
+    const editor = process.env.VISUAL || process.env.EDITOR || "vi";
+    const args = line && line > 0 ? [`+${line}`, file] : [file];
+    const id = `s${++this.counter}`;
+    const term = new Terminal({
+      id,
+      cwd: this.opts.cwd,
+      shell: editor,
+      args,
+      title: `✎ ${path.basename(file)}`,
+      spawnFn,
+      onChange: () => {
+        const t = this.tabs.find((x) => x.id === id);
+        // Auto-close the satellite when the editor process exits; otherwise it is a
+        // normal screen update — re-render.
+        if (t && t.kind === "terminal" && t.status === "exited") this.close(id);
+        else this.notify();
+      },
+    });
+    this.tabs.push(term);
+    this.activeIndex = this.tabs.length - 1;
+    this.notify();
+    return term;
   }
 
   activate(index: number): void {

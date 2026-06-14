@@ -67,6 +67,8 @@ function ancestorsOf(p: string): string[] {
  * so the current file is revealed in context. When `focused` (Ctrl+E), it owns the
  * keyboard: ↑/↓ or j/k move the cursor, →/Enter/Space open a folder, ←/h close it
  * (or jump to the parent), g/G jump to ends, and Esc/i hand focus back to the input.
+ * Activating a FILE row (Enter/→/l/Space) calls `onOpenFile` — the Option C editor
+ * satellite hands it to `$EDITOR` rather than rendering it here.
  */
 export function FileTree({
   cwd,
@@ -75,6 +77,7 @@ export function FileTree({
   activeFile,
   focused = false,
   onExit,
+  onOpenFile,
 }: {
   cwd: string;
   width: number;
@@ -82,6 +85,7 @@ export function FileTree({
   activeFile?: string;
   focused?: boolean;
   onExit?: () => void;
+  onOpenFile?: (path: string) => void;
 }) {
   const allRows = buildRows(listProjectFilesCached(cwd));
 
@@ -120,6 +124,7 @@ export function FileTree({
       } else if (key.return || input === " " || input === "l" || key.rightArrow) {
         const row = visible[selIdx];
         if (row?.isDir) setExpanded((prev) => new Set(prev).add(row.path));
+        else if (row) onOpenFile?.(row.path);
       } else if (input === "h" || key.leftArrow) {
         const row = visible[selIdx];
         if (row?.isDir && expanded.has(row.path)) {

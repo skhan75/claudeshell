@@ -279,6 +279,12 @@ export function App() {
               activeFile={activeFile}
               focused={focus === "explorer"}
               onExit={() => store.getState().setFocus("input")}
+              onOpenFile={(rel) => {
+                // Editor satellite: open the picked file in $EDITOR, then drop the
+                // explorer focus so returning from the editor lands back on input.
+                manager.openInEditor(rel);
+                store.getState().setFocus("input");
+              }}
             />
           )}
           {/* Overlays/palette take precedence over a terminal tab; a Claude tab

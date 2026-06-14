@@ -17,6 +17,7 @@ export function SidebarPanel({
   activeFile,
   focused = false,
   onExit,
+  onOpenFile,
 }: {
   width: number;
   height: number;
@@ -24,6 +25,7 @@ export function SidebarPanel({
   activeFile?: string;
   focused?: boolean;
   onExit?: () => void;
+  onOpenFile?: (path: string) => void;
 }) {
   const inner = width - 3; // right divider (1) + paddingX (1 each)
   const treeHeight = Math.max(1, height - 1 - (focused ? 1 : 0)); // header (+ hint when focused)
@@ -40,8 +42,16 @@ export function SidebarPanel({
       paddingX={1}
     >
       <SectionHeader label="▤ EXPLORER" width={inner} right={focused ? "●" : undefined} />
-      <FileTree cwd={cwd} width={inner} height={treeHeight} activeFile={activeFile} focused={focused} onExit={onExit} />
-      {focused && <Text color={theme.dim}>↑↓ move · → open · ← close · esc</Text>}
+      <FileTree
+        cwd={cwd}
+        width={inner}
+        height={treeHeight}
+        activeFile={activeFile}
+        focused={focused}
+        onExit={onExit}
+        onOpenFile={onOpenFile}
+      />
+      {focused && <Text color={theme.dim}>↑↓ move · ⏎ edit · → open · ← close · esc</Text>}
     </Box>
   );
 }

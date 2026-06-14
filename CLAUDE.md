@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚑ Read this first: `LOGBOOK.md`
+
+**Always read `LOGBOOK.md` (repo root) at the start of work** — it is the project's running
+memory: critical decisions, direction, notable changes, and resolved issues, newest first. The
+current product direction lives there (currently: **Option C — the agent-fleet cockpit; delegate
+editing to the user's `$EDITOR`, do not rebuild the editor**). **Append a terse, timestamped entry
+to `LOGBOOK.md` whenever you make a critical decision, land a notable change, or resolve an issue.**
+
 ## What this is
 
 claudeshell is a terminal TUI (Ink 5 + React 18, TypeScript ESM) that wraps Claude Code

@@ -62,4 +62,32 @@ describe("FileTree", () => {
     await tick();
     expect(lastFrame()).not.toContain("App.tsx");
   });
+
+  it("fires onOpenFile when a FILE row is activated (editor satellite)", async () => {
+    const cwd = project();
+    const opened: string[] = [];
+    const { stdin } = renderWithCtx(
+      <FileTree cwd={cwd} width={28} height={20} focused onOpenFile={(p) => opened.push(p)} />,
+    );
+    await tick();
+    // Folded view: row 0 is the `src` folder, row 1 is README.md (a file).
+    stdin.write("j"); // move cursor to README.md
+    await tick();
+    stdin.write("\r"); // Enter activates it
+    await tick();
+    expect(opened).toEqual(["README.md"]);
+  });
+
+  it("does not fire onOpenFile when a FOLDER row is activated (it expands instead)", async () => {
+    const cwd = project();
+    const opened: string[] = [];
+    const { stdin, lastFrame } = renderWithCtx(
+      <FileTree cwd={cwd} width={28} height={20} focused onOpenFile={(p) => opened.push(p)} />,
+    );
+    await tick();
+    stdin.write("\r"); // Enter on the selected `src` folder
+    await tick();
+    expect(opened).toEqual([]); // folders expand, they don't open in the editor
+    expect(lastFrame()).toContain("App.tsx"); // src expanded
+  });
 });

@@ -26,6 +26,15 @@ export function buildPaletteItems(ctx: AppCtx): PaletteItem[] {
 
   items.push({ label: "action: new session", run: () => void manager.create() });
   items.push({ label: "action: new terminal", run: () => void manager.createTerminal() });
+
+  // Editor satellite (Option C): hand the most-recently-touched file to the user's
+  // own $EDITOR. Only offered once a file is in the conversation's context.
+  const ctxFiles = session ? [...session.transcript.contextFiles] : [];
+  const lastFile = ctxFiles[ctxFiles.length - 1];
+  if (lastFile) {
+    const base = lastFile.split("/").pop() || lastFile;
+    items.push({ label: `edit: open ${base} in $EDITOR`, run: () => void manager.openInEditor(lastFile) });
+  }
   items.push({ label: "action: close session", run: () => session && manager.close(session.id) });
   items.push({ label: "action: toggle layout", run: () => store.getState().toggleLayout() });
   items.push({ label: "action: interrupt session", run: () => void session?.interrupt() });
